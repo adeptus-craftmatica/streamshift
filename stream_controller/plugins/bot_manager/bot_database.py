@@ -10,6 +10,7 @@ from stream_controller.plugins.bot_manager.bot_models import (
     BotCommand,
     DEFAULT_COMMANDS,
     EventResponse,
+    RewardSelection,
     TimedMessage,
 )
 
@@ -26,6 +27,7 @@ class BotDatabase:
         self._conn = sqlite3.connect(str(path), check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
         self._create_tables()
+        self._migrate_schema()
         if is_new:
             self._seed_defaults()
 
@@ -108,7 +110,36 @@ class BotDatabase:
                 message_template    TEXT NOT NULL DEFAULT '',
                 enabled             INTEGER NOT NULL DEFAULT 1
             );
+
+            CREATE TABLE IF NOT EXISTS reward_selections (
+                selection_id    TEXT PRIMARY KEY,
+                bot_id          TEXT NOT NULL DEFAULT '',
+                username        TEXT NOT NULL DEFAULT '',
+                user_id         TEXT NOT NULL DEFAULT '',
+                source          TEXT NOT NULL DEFAULT '',
+                reward_name     TEXT NOT NULL DEFAULT '',
+                command_trigger TEXT NOT NULL DEFAULT '',
+                selection       TEXT NOT NULL DEFAULT '',
+                ts              REAL NOT NULL DEFAULT 0,
+                status          TEXT NOT NULL DEFAULT 'pending'
+            );
         """)
+        self._conn.commit()
+
+    def _migrate_schema(self) -> None:
+        """Add new columns to existing databases without destroying data."""
+        migrations = [
+            "ALTER TABLE commands ADD COLUMN command_type TEXT NOT NULL DEFAULT 'text'",
+            "ALTER TABLE commands ADD COLUMN list_title TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE commands ADD COLUMN list_items TEXT NOT NULL DEFAULT '[]'",
+            "ALTER TABLE commands ADD COLUMN linked_reward TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE commands ADD COLUMN linked_bits INTEGER NOT NULL DEFAULT 0",
+        ]
+        for sql in migrations:
+            try:
+                self._conn.execute(sql)
+            except Exception:
+                pass  # Column already exists
         self._conn.commit()
 
     def _seed_defaults(self) -> None:
@@ -127,8 +158,10 @@ class BotDatabase:
     # ── Commands ──────────────────────────────────────────────────────────────
 
     def list_commands(self) -> list[BotCommand]:
+        import json as _json
         cur = self._conn.execute(
-            "SELECT command_id, bot_id, trigger, response, cooldown_seconds, enabled, is_builtin "
+            "SELECT command_id, bot_id, trigger, response, cooldown_seconds, enabled, is_builtin, "
+            "command_type, list_title, list_items, linked_reward, linked_bits "
             "FROM commands ORDER BY trigger"
         )
         return [
@@ -140,22 +173,34 @@ class BotDatabase:
                 cooldown_seconds=row["cooldown_seconds"],
                 enabled=bool(row["enabled"]),
                 is_builtin=bool(row["is_builtin"]),
+                command_type=row["command_type"] or "text",
+                list_title=row["list_title"] or "",
+                list_items=_json.loads(row["list_items"] or "[]"),
+                linked_reward=row["linked_reward"] or "",
+                linked_bits=row["linked_bits"] or 0,
             )
             for row in cur.fetchall()
         ]
 
     def save_command(self, cmd: BotCommand) -> None:
+        import json as _json
         self._conn.execute(
             """
-            INSERT INTO commands (command_id, bot_id, trigger, response, cooldown_seconds, enabled, is_builtin)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO commands (command_id, bot_id, trigger, response, cooldown_seconds, enabled, is_builtin,
+                command_type, list_title, list_items, linked_reward, linked_bits)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(command_id) DO UPDATE SET
                 bot_id           = excluded.bot_id,
                 trigger          = excluded.trigger,
                 response         = excluded.response,
                 cooldown_seconds = excluded.cooldown_seconds,
                 enabled          = excluded.enabled,
-                is_builtin       = excluded.is_builtin
+                is_builtin       = excluded.is_builtin,
+                command_type     = excluded.command_type,
+                list_title       = excluded.list_title,
+                list_items       = excluded.list_items,
+                linked_reward    = excluded.linked_reward,
+                linked_bits      = excluded.linked_bits
             """,
             (
                 cmd.command_id,
@@ -165,6 +210,11 @@ class BotDatabase:
                 cmd.cooldown_seconds,
                 int(cmd.enabled),
                 int(cmd.is_builtin),
+                cmd.command_type,
+                cmd.list_title,
+                _json.dumps(cmd.list_items),
+                cmd.linked_reward,
+                cmd.linked_bits,
             ),
         )
         self._conn.commit()
@@ -472,3 +522,60 @@ class BotDatabase:
     def delete_discord_route(self, route_id: str) -> None:
         self._conn.execute("DELETE FROM discord_routes WHERE route_id = ?", (route_id,))
         self._conn.commit()
+
+    # ── Reward Selections ─────────────────────────────────────────────────────
+
+    def save_selection(self, sel: RewardSelection) -> None:
+        self._conn.execute(
+            """
+            INSERT INTO reward_selections
+                (selection_id, bot_id, username, user_id, source, reward_name, command_trigger, selection, ts, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(selection_id) DO UPDATE SET
+                status = excluded.status
+            """,
+            (
+                sel.selection_id,
+                sel.bot_id,
+                sel.username,
+                sel.user_id,
+                sel.source,
+                sel.reward_name,
+                sel.command_trigger,
+                sel.selection,
+                sel.ts,
+                sel.status,
+            ),
+        )
+        self._conn.commit()
+
+    def list_selections(self, limit: int = 100) -> list[RewardSelection]:
+        cur = self._conn.execute(
+            "SELECT selection_id, bot_id, username, user_id, source, reward_name, "
+            "command_trigger, selection, ts, status "
+            "FROM reward_selections ORDER BY ts DESC LIMIT ?",
+            (limit,),
+        )
+        return [
+            RewardSelection(
+                selection_id=row["selection_id"],
+                bot_id=row["bot_id"],
+                username=row["username"],
+                user_id=row["user_id"],
+                source=row["source"],
+                reward_name=row["reward_name"],
+                command_trigger=row["command_trigger"],
+                selection=row["selection"],
+                ts=row["ts"],
+                status=row["status"],
+            )
+            for row in cur.fetchall()
+        ]
+
+    def update_selection_status(self, selection_id: str, status: str) -> None:
+        self._conn.execute(
+            "UPDATE reward_selections SET status = ? WHERE selection_id = ?",
+            (status, selection_id),
+        )
+        self._conn.commit()
+

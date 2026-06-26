@@ -3,6 +3,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from PySide6.QtCore import QTimer
+
 from stream_controller.core.app_context import AppContext
 from stream_controller.plugins.scene_manager.actions import ACTION_DEFINITIONS
 from stream_controller.plugins.scene_manager.scene_client import SceneClient
@@ -25,6 +27,7 @@ class SceneManagerPlugin:
         self._overlay: SceneOverlayServer | None = None
         self._page_widget = None
         self._dynamic_action_ids: set[str] = set()
+        self._retry_timer: QTimer | None = None
 
     def register(self, app_context: AppContext) -> None:
         self._app_context = app_context
@@ -44,10 +47,12 @@ class SceneManagerPlugin:
                 port=int(self._repo.get("port")),
                 password=str(self._repo.get("password")),
             )
+            self._start_retry_timer()
 
         app_context.set_status("Scene Manager loaded.", timeout_ms=3000)
 
     def unregister(self, app_context: AppContext) -> None:
+        self._stop_retry_timer()
         if self._client:
             self._client.disconnect()
         if self._overlay:
@@ -59,6 +64,34 @@ class SceneManagerPlugin:
                 pass
         self._dynamic_action_ids.clear()
         self._app_context = None
+
+    def _start_retry_timer(self) -> None:
+        if self._retry_timer is not None:
+            return
+        self._retry_timer = QTimer()
+        self._retry_timer.setInterval(8000)
+        self._retry_timer.timeout.connect(self._retry_connect)
+        self._retry_timer.start()
+
+    def _stop_retry_timer(self) -> None:
+        if self._retry_timer:
+            self._retry_timer.stop()
+            self._retry_timer = None
+
+    def _retry_connect(self) -> None:
+        if not self._client or not self._repo:
+            return
+        status = self._client.state.status
+        if status == ConnectionStatus.CONNECTED:
+            self._stop_retry_timer()
+            return
+        if status == ConnectionStatus.CONNECTING:
+            return
+        self._client.connect(
+            host=str(self._repo.get("host")),
+            port=int(self._repo.get("port")),
+            password=str(self._repo.get("password")),
+        )
 
     # ── actions ───────────────────────────────────────────────────────────────
 

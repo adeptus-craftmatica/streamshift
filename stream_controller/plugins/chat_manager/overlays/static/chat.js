@@ -34,19 +34,32 @@
     root.style.setProperty('--font-size',  fontSize);
   }
 
+  var _failCount = 0;
+  var _reloading = false;
+
   function fetchMessages(callback) {
     var url = _apiBase + '/api/messages?since=' + encodeURIComponent(_lastId);
     fetch(url)
       .then(function(r) { return r.json(); })
       .then(function(data) {
+        _failCount = 0;
         var msgs = data.messages || [];
         if (msgs.length > 0) {
           _lastId = msgs[msgs.length - 1].id;
         }
         callback(msgs, data.status, data.channel);
       })
-      .catch(function() {});
+      .catch(function() {
+        _failCount++;
+        if (_failCount >= 6 && !_reloading) {
+          _reloading = true;
+          setTimeout(function() { window.location.reload(); }, 3000);
+        }
+      });
   }
+
+  // Startup probe — prime fail counter if server is down.
+  fetch(_apiBase + '/api/messages?since=').catch(function() { _failCount = 4; });
 
   // ── Feed overlay ──────────────────────────────────────────────────────────
 

@@ -6,6 +6,7 @@ import ssl
 import time
 import urllib.request
 import urllib.error
+import uuid
 from typing import Callable
 
 from PySide6.QtCore import QObject, Signal, QMetaObject, Qt
@@ -15,6 +16,7 @@ from stream_controller.plugins.bot_manager.bot_models import (
     BotActivity,
     BotConfig,
     BotRunState,
+    RewardSelection,
 )
 from stream_controller.plugins.bot_manager.discord_bot_client import DiscordBotClient
 from stream_controller.plugins.bot_manager.twitch_bot_client import TwitchBotClient
@@ -49,12 +51,15 @@ class BotEngine:
         self._signals = _Signals()
         self._subscribers: list[Callable[[BotRunState], None]] = []
         self._uptime_cache: tuple[float, str] = (0.0, "")  # (fetched_ts, value)
+        # username → (BotCommand, source, reward_name) for pending list selections
+        self._pending_selections: dict[str, tuple] = {}
 
         self._twitch_client = TwitchBotClient(
             on_command=self._on_twitch_command,
             on_event=self._on_twitch_event,
             on_status=self._on_twitch_status,
             on_message_seen=self._on_message_seen,
+            on_chat_message=self._on_chat_message,
         )
         self._discord_client = DiscordBotClient(
             on_message=self._on_discord_message,
@@ -165,20 +170,25 @@ class BotEngine:
         if now - last_used < cmd.cooldown_seconds:
             return
 
-        # Record use immediately to block concurrent triggers during the cooldown window
         self._db.record_command_use(trigger)
         use_count = self._get_command_use_count(trigger)
 
-        response = self._format_response(
-            cmd.response,
-            user=username,
-            tags=tags,
-            trigger=trigger,
-            use_count=use_count,
-        )
-        self.send_chat_message(response)
-        self._state.commands_handled += 1
-        self._log_activity("command", f"{username}: {trigger} → {response[:60]}")
+        if cmd.command_type == "list" and cmd.list_items:
+            self._post_list_to_chat(cmd, username)
+            self._state.commands_handled += 1
+            self._log_activity("command", f"{username}: {trigger} → [list: {cmd.list_title or trigger}]")
+        else:
+            response = self._format_response(
+                cmd.response,
+                user=username,
+                tags=tags,
+                trigger=trigger,
+                use_count=use_count,
+            )
+            self.send_chat_message(response)
+            self._state.commands_handled += 1
+            self._log_activity("command", f"{username}: {trigger} → {response[:60]}")
+
         try:
             self._db.upsert_user_stat(username, tags.get("user-id", ""), message_delta=1)
         except Exception as exc:
@@ -219,6 +229,13 @@ class BotEngine:
             self._db.log_event(event_type, username, tags.get("user-id", ""), amount=amount)
         except Exception as exc:
             logger.debug("event logging error: %s", exc)
+
+        # Check for bits-linked list commands
+        if event_type in ("bits", "cheer"):
+            bits_str = tags.get("bits", "0")
+            bits_count = int(bits_str) if bits_str.isdigit() else 0
+            if bits_count > 0:
+                self._check_bits_list_trigger(username, bits_count, tags)
 
         message_text = tags.get("message", "")
         ctx: dict = {"amount": amount}
@@ -282,6 +299,9 @@ class BotEngine:
         self._log_activity("event", activity_text)
         extra = {"reward": reward_name, "cost": cost, "amount": cost, "input": input_text}
 
+        # Check for channel-point-linked list commands
+        self._check_reward_list_trigger(username, user_id, reward_name, cost)
+
         # Fire any enabled channel_points event responses to Twitch chat
         tags = {"reward": reward_name, "cost": str(cost), "input": input_text or ""}
         for resp in self._db.list_event_responses():
@@ -312,6 +332,83 @@ class BotEngine:
                 self._on_alert_cb(event_type, username, extra)
             except Exception as exc:
                 logger.debug("on_alert_cb error: %s", exc)
+
+    def _post_list_to_chat(self, cmd, username: str = "") -> None:
+        title = cmd.list_title or cmd.trigger
+        items_str = " | ".join(f"{i+1}. {item}" for i, item in enumerate(cmd.list_items))
+        msg = f"{title}: {items_str}"
+        if username:
+            msg = f"@{username} — {msg}"
+        self.send_chat_message(msg[:500])
+
+    def _check_reward_list_trigger(
+        self, username: str, user_id: str, reward_name: str, cost: int
+    ) -> None:
+        name_lower = reward_name.strip().lower()
+        commands = self._db.list_commands()
+        for cmd in commands:
+            if cmd.command_type != "list" or not cmd.list_items:
+                continue
+            if not cmd.linked_reward:
+                continue
+            if cmd.linked_reward.strip().lower() == name_lower:
+                self._post_list_to_chat(cmd, username)
+                self._pending_selections[username.lower()] = (cmd, "channel_points", reward_name)
+                self._log_activity(
+                    "event",
+                    f"List shown to {username} for reward '{reward_name}' ({cmd.trigger}) — awaiting selection",
+                )
+                break
+
+    def _check_bits_list_trigger(self, username: str, bits: int, tags: dict) -> None:
+        commands = self._db.list_commands()
+        for cmd in commands:
+            if cmd.command_type != "list" or not cmd.list_items:
+                continue
+            if cmd.linked_bits <= 0 or bits < cmd.linked_bits:
+                continue
+            self._post_list_to_chat(cmd, username)
+            self._pending_selections[username.lower()] = (cmd, "bits", f"{bits} bits")
+            self._log_activity(
+                "event",
+                f"List shown to {username} for {bits} bits ({cmd.trigger}) — awaiting selection",
+            )
+            break
+
+    def _on_chat_message(self, username: str, text: str, tags: dict) -> None:
+        """Called for every PRIVMSG. Captures selection if user has a pending list."""
+        key = username.lower()
+        pending = self._pending_selections.get(key)
+        if pending is None:
+            return
+        if text.startswith("!"):
+            return  # ignore commands — wait for plain text
+
+        cmd, source, reward_name = pending
+        sel = RewardSelection(
+            selection_id=uuid.uuid4().hex,
+            bot_id=self._config.bot_id,
+            username=username,
+            user_id=tags.get("user-id", ""),
+            source=source,
+            reward_name=reward_name,
+            command_trigger=cmd.trigger,
+            selection=text.strip()[:200],
+            ts=time.time(),
+            status="pending",
+        )
+        try:
+            self._db.save_selection(sel)
+        except Exception as exc:
+            logger.warning("save_selection error: %s", exc)
+        del self._pending_selections[key]
+        self._log_activity(
+            "event",
+            f"{username} selected '{sel.selection[:60]}' for {reward_name}",
+        )
+        self.send_chat_message(
+            f"@{username} — Got it! Your selection '{sel.selection[:60]}' has been recorded. ✅"
+        )
 
     def _route_to_discord(self, event_type: str, username: str, ctx: dict) -> None:
         try:

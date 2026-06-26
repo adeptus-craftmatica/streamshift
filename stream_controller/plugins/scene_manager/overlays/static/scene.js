@@ -16,16 +16,28 @@
     R.style.setProperty('--text-lo','rgba('+hexRgb(txt)+',0.55)');
   }
 
-  var _apiBase  = location.protocol+'//'+location.host;
-  var _interval = parseInt(param('interval','800'));
+  var _apiBase   = location.protocol+'//'+location.host;
+  var _interval  = parseInt(param('interval','800'));
   var _lastScene = null;
   var _callbacks = {};
+  var _failCount = 0;
+  var _reloading = false;
 
   function fetchState(cb){
     fetch(_apiBase+'/api/state')
       .then(function(r){return r.json();})
-      .then(cb).catch(function(){});
+      .then(function(s){ _failCount=0; cb(s); })
+      .catch(function(){
+        _failCount++;
+        if (_failCount >= 10 && !_reloading) {
+          _reloading = true;
+          setTimeout(function(){ window.location.reload(); }, 3000);
+        }
+      });
   }
+
+  // Startup probe — prime fail counter if server is down.
+  fetch(_apiBase+'/api/state').catch(function(){ _failCount = 8; });
 
   function startScene(opts){
     opts=opts||{};

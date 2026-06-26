@@ -39,9 +39,11 @@ class OverlayServer:
         if not _FLASK_AVAILABLE:
             logger.warning("Flask not available — overlay server not started")
             return
+        self._ready = threading.Event()
         self._thread = threading.Thread(target=self._run, daemon=True, name="music-overlay-server")
         self._thread.start()
-        logger.info("Overlay server started on port %d", self._port)
+        self._ready.wait(timeout=5.0)
+        logger.info("Overlay server ready on port %d", self._port)
 
     def stop(self) -> None:
         if self._server is not None:
@@ -57,6 +59,12 @@ class OverlayServer:
         app = Flask(__name__, static_folder=None)
 
         music_state = self._music_state
+
+        @app.after_request
+        def _no_cache(response):
+            if "text/html" in response.content_type:
+                response.headers["Cache-Control"] = "no-store"
+            return response
 
         @app.route("/api/state")
         def api_state():
@@ -125,8 +133,10 @@ class OverlayServer:
             import werkzeug.serving
             server = werkzeug.serving.make_server("localhost", self._port, app)
             self._server = server
+            self._ready.set()
             server.serve_forever()
         except OSError as exc:
+            self._ready.set()
             logger.error("Overlay server failed to bind port %d: %s", self._port, exc)
         except Exception as exc:
             logger.error("Overlay server error: %s", exc)

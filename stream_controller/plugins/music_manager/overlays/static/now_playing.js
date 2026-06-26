@@ -217,12 +217,24 @@
   /* ════════════════════════════════════════════════════════════════════════
    * API FETCH
    * ════════════════════════════════════════════════════════════════════════ */
+  let _failCount  = 0;
+  let _reloading  = false;
+  const _FAIL_LIMIT = 10; // ~5 s at 500 ms default interval
+
   async function fetchState() {
     try {
       const r = await fetch('/api/state?_=' + Date.now(), { cache: 'no-store' });
       if (!r.ok) return null;
+      _failCount = 0;
       return await r.json();
-    } catch { return null; }
+    } catch {
+      _failCount++;
+      if (_failCount >= _FAIL_LIMIT && !_reloading) {
+        _reloading = true;
+        setTimeout(() => window.location.reload(), 3000);
+      }
+      return null;
+    }
   }
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -349,6 +361,10 @@
   /* ════════════════════════════════════════════════════════════════════════
    * PUBLIC API
    * ════════════════════════════════════════════════════════════════════════ */
+  // Startup probe — prime fail counter immediately if server is down so the
+  // reload fires on the next polling tick rather than after N full intervals.
+  fetch('/api/state', { cache: 'no-store' }).catch(() => { _failCount = _FAIL_LIMIT - 1; });
+
   window.startNowPlaying = function (opts) {
     opts = opts || {};
     _rafOpts = opts;

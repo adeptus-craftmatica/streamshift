@@ -81,6 +81,11 @@ class BotCommand:
     cooldown_seconds: int
     enabled: bool
     is_builtin: bool
+    command_type: str = "text"        # "text" or "list"
+    list_title: str = ""
+    list_items: list = field(default_factory=list)
+    linked_reward: str = ""           # channel-point reward name that triggers showing this list
+    linked_bits: int = 0              # bits threshold that triggers showing this list
 
     def to_dict(self) -> dict:
         return {
@@ -91,6 +96,11 @@ class BotCommand:
             "cooldown_seconds": self.cooldown_seconds,
             "enabled": self.enabled,
             "is_builtin": self.is_builtin,
+            "command_type": self.command_type,
+            "list_title": self.list_title,
+            "list_items": self.list_items,
+            "linked_reward": self.linked_reward,
+            "linked_bits": self.linked_bits,
         }
 
     @staticmethod
@@ -103,6 +113,55 @@ class BotCommand:
             cooldown_seconds=d.get("cooldown_seconds", 5),
             enabled=d.get("enabled", True),
             is_builtin=d.get("is_builtin", False),
+            command_type=d.get("command_type", "text"),
+            list_title=d.get("list_title", ""),
+            list_items=d.get("list_items", []),
+            linked_reward=d.get("linked_reward", ""),
+            linked_bits=d.get("linked_bits", 0),
+        )
+
+
+@dataclass
+class RewardSelection:
+    """A viewer's selection after being shown a list (via bits or channel points)."""
+    selection_id: str
+    bot_id: str
+    username: str
+    user_id: str
+    source: str           # "bits" or "channel_points"
+    reward_name: str      # the reward/trigger that was matched
+    command_trigger: str  # the !command whose list was shown
+    selection: str        # what the viewer typed
+    ts: float
+    status: str = "pending"  # "pending" or "confirmed"
+
+    def to_dict(self) -> dict:
+        return {
+            "selection_id": self.selection_id,
+            "bot_id": self.bot_id,
+            "username": self.username,
+            "user_id": self.user_id,
+            "source": self.source,
+            "reward_name": self.reward_name,
+            "command_trigger": self.command_trigger,
+            "selection": self.selection,
+            "ts": self.ts,
+            "status": self.status,
+        }
+
+    @staticmethod
+    def from_dict(d: dict) -> "RewardSelection":
+        return RewardSelection(
+            selection_id=d.get("selection_id", uuid.uuid4().hex),
+            bot_id=d.get("bot_id", ""),
+            username=d.get("username", ""),
+            user_id=d.get("user_id", ""),
+            source=d.get("source", ""),
+            reward_name=d.get("reward_name", ""),
+            command_trigger=d.get("command_trigger", ""),
+            selection=d.get("selection", ""),
+            ts=d.get("ts", 0.0),
+            status=d.get("status", "pending"),
         )
 
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from collections import defaultdict
 from typing import Any
 
@@ -8,7 +9,10 @@ from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QDoubleSpinBox,
+    QFileDialog,
     QFrame,
     QHBoxLayout,
     QKeySequenceEdit,
@@ -16,6 +20,7 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QListWidget,
     QListWidgetItem,
+    QMessageBox,
     QPushButton,
     QScrollArea,
     QSpinBox,
@@ -96,6 +101,9 @@ class PluginSettingsPage(QWidget):
         empty_label.setWordWrap(True)
         empty_body.addWidget(empty_label)
         self._content_layout.addWidget(self._empty_state_card)
+
+        self._backup_card = self._build_backup_card()
+        self._content_layout.addWidget(self._backup_card)
 
         self._content_layout.addStretch(1)
 
@@ -292,6 +300,184 @@ class PluginSettingsPage(QWidget):
         except Exception:
             pass
         self._raid_reload()
+
+    # ── Data Backup ──────────────────────────────────────────────────────────
+
+    def _build_backup_card(self) -> QFrame:
+        card, body = create_card(
+            "Data Backup",
+            "Export all your settings, macros, bots, and credentials to a single encrypted file. "
+            "Import it on any other machine to get set up instantly.",
+        )
+
+        note = QLabel(
+            "Credentials are protected with AES-256-GCM encryption. "
+            "You will need your passphrase to restore — keep it somewhere safe."
+        )
+        note.setObjectName("MetaText")
+        note.setWordWrap(True)
+        body.addWidget(note)
+
+        self._backup_status = QLabel("")
+        self._backup_status.setObjectName("MetaText")
+        self._backup_status.setWordWrap(True)
+        self._backup_status.hide()
+        body.addWidget(self._backup_status)
+
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(12)
+
+        export_btn = QPushButton("Export Data…")
+        export_btn.setObjectName("PrimaryButton")
+        export_btn.clicked.connect(self._do_export)
+
+        import_btn = QPushButton("Import Data…")
+        import_btn.setObjectName("SecondaryButton")
+        import_btn.clicked.connect(self._do_import)
+
+        btn_row.addWidget(export_btn)
+        btn_row.addWidget(import_btn)
+        btn_row.addStretch(1)
+        body.addLayout(btn_row)
+
+        return card
+
+    def _passphrase_dialog(self, title: str, confirm: bool = False) -> str | None:
+        """Show a passphrase entry dialog. Returns the passphrase or None if cancelled."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle(title)
+        dlg.setMinimumWidth(380)
+
+        layout = QVBoxLayout(dlg)
+        layout.setSpacing(12)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        layout.addWidget(QLabel("Enter a passphrase to encrypt your credentials:"))
+
+        pw_field = QLineEdit()
+        pw_field.setEchoMode(QLineEdit.Password)
+        pw_field.setPlaceholderText("Passphrase")
+        layout.addWidget(pw_field)
+
+        if confirm:
+            layout.addWidget(QLabel("Confirm passphrase:"))
+            confirm_field = QLineEdit()
+            confirm_field.setEchoMode(QLineEdit.Password)
+            confirm_field.setPlaceholderText("Confirm passphrase")
+            layout.addWidget(confirm_field)
+        else:
+            confirm_field = None
+
+        show_cb = QCheckBox("Show passphrase")
+        show_cb.toggled.connect(
+            lambda checked: pw_field.setEchoMode(QLineEdit.Normal if checked else QLineEdit.Password)
+        )
+        if confirm_field:
+            show_cb.toggled.connect(
+                lambda checked: confirm_field.setEchoMode(QLineEdit.Normal if checked else QLineEdit.Password)
+            )
+        layout.addWidget(show_cb)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+        layout.addWidget(buttons)
+
+        if dlg.exec() != QDialog.Accepted:
+            return None
+
+        passphrase = pw_field.text()
+        if not passphrase:
+            QMessageBox.warning(self, "Passphrase Required", "Please enter a passphrase.")
+            return None
+
+        if confirm_field and pw_field.text() != confirm_field.text():
+            QMessageBox.warning(self, "Mismatch", "Passphrases do not match. Please try again.")
+            return None
+
+        return passphrase
+
+    def _show_backup_status(self, text: str, success: bool = True) -> None:
+        from PySide6.QtCore import QTimer
+        colour = "#4ade80" if success else "#f87171"
+        self._backup_status.setText(text)
+        self._backup_status.setStyleSheet(f"color: {colour};")
+        self._backup_status.show()
+        QTimer.singleShot(6000, self._backup_status.hide)
+
+    def _do_export(self) -> None:
+        from pathlib import Path
+        passphrase = self._passphrase_dialog("Export — Set Passphrase", confirm=True)
+        if passphrase is None:
+            return
+
+        dest, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save StreamShift Backup",
+            str(Path.home() / "StreamShift_backup.ssbackup"),
+            "StreamShift Backup (*.ssbackup)",
+        )
+        if not dest:
+            return
+
+        dest_path = Path(dest)
+
+        def _run() -> None:
+            try:
+                from stream_controller.core.data_transfer import export_backup
+                files, secrets = export_backup(dest_path, passphrase)
+                self._show_backup_status(
+                    f"Export complete — {files} config files and {secrets} credential(s) saved.",
+                    success=True,
+                )
+            except Exception as exc:
+                self._show_backup_status(f"Export failed: {exc}", success=False)
+
+        threading.Thread(target=_run, daemon=True, name="backup-export").start()
+
+    def _do_import(self) -> None:
+        from pathlib import Path
+        src, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open StreamShift Backup",
+            str(Path.home()),
+            "StreamShift Backup (*.ssbackup)",
+        )
+        if not src:
+            return
+
+        confirm = QMessageBox.question(
+            self,
+            "Overwrite Current Data?",
+            "Importing will overwrite your current settings and credentials.\n"
+            "Make sure you have a backup of your current data first.\n\n"
+            "Continue?",
+            QMessageBox.Yes | QMessageBox.No,
+        )
+        if confirm != QMessageBox.Yes:
+            return
+
+        passphrase = self._passphrase_dialog("Import — Enter Passphrase", confirm=False)
+        if passphrase is None:
+            return
+
+        src_path = Path(src)
+
+        def _run() -> None:
+            try:
+                from stream_controller.core.data_transfer import import_backup
+                files, secrets = import_backup(src_path, passphrase)
+                self._show_backup_status(
+                    f"Import complete — {files} config files and {secrets} credential(s) restored. "
+                    "Restart StreamShift to apply all changes.",
+                    success=True,
+                )
+            except ValueError as exc:
+                self._show_backup_status(f"Import failed: {exc}", success=False)
+            except Exception as exc:
+                self._show_backup_status(f"Import error: {exc}", success=False)
+
+        threading.Thread(target=_run, daemon=True, name="backup-import").start()
 
     def _build_plugin_card(
         self,

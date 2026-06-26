@@ -58,12 +58,25 @@
     if (_hideTimer) { clearTimeout(_hideTimer); _hideTimer = null; }
   }
 
+  var _failCount  = 0;
+  var _reloading  = false;
+  var _FAIL_LIMIT = 15; // ~3 s at 200 ms default interval
+
   function fetchState(cb) {
     var url = _apiBase + '/api/state' + (_timerId ? '?id=' + encodeURIComponent(_timerId) : '');
     fetch(url)
       .then(function(r) { return r.json(); })
-      .then(cb)
-      .catch(function() {});
+      .then(function(data) {
+        _failCount = 0;
+        cb(data);
+      })
+      .catch(function() {
+        _failCount++;
+        if (_failCount >= _FAIL_LIMIT && !_reloading) {
+          _reloading = true;
+          setTimeout(function() { window.location.reload(); }, 2000);
+        }
+      });
   }
 
   function fmtSecs(s) {
@@ -74,6 +87,13 @@
     if (h > 0) return h + ':' + String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
     return String(m).padStart(2,'0') + ':' + String(sec).padStart(2,'0');
   }
+
+  // Startup probe — runs immediately on every page load.
+  // If the server is down (StreamShift not running), prime the fail counter so
+  // the reload fires quickly instead of waiting for N polling intervals.
+  // This makes the retry loop self-sustaining across successive reload attempts.
+  fetch(_apiBase + '/api/state')
+    .catch(function() { _failCount = _FAIL_LIMIT - 1; });
 
   function startTimer(opts) {
     opts = opts || {};

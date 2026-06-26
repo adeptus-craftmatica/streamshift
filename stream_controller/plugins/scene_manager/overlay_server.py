@@ -35,8 +35,10 @@ class SceneOverlayServer:
         if not _FLASK:
             logger.warning("Flask not available — scene overlay server not started")
             return
+        self._ready = threading.Event()
         threading.Thread(target=self._run, daemon=True, name="scene-overlay-server").start()
-        logger.info("Scene overlay server started on port %d", self._port)
+        self._ready.wait(timeout=5.0)
+        logger.info("Scene overlay server ready on port %d", self._port)
 
     def stop(self) -> None:
         if self._server:
@@ -50,6 +52,12 @@ class SceneOverlayServer:
         _log.getLogger("werkzeug").setLevel(_log.ERROR)
         app  = Flask(__name__, static_folder=None)
         cli  = self._client
+
+        @app.after_request
+        def _no_cache(response):
+            if "text/html" in response.content_type:
+                response.headers["Cache-Control"] = "no-store"
+            return response
 
         def _state_json():
             resp = Response(
@@ -92,8 +100,11 @@ class SceneOverlayServer:
             import werkzeug.serving
             server = werkzeug.serving.make_server("localhost", self._port, app)
             self._server = server
+            self._ready.set()
             server.serve_forever()
         except OSError as exc:
+            self._ready.set()
             logger.error("Scene overlay server failed on port %d: %s", self._port, exc)
         except Exception as exc:
+            self._ready.set()
             logger.error("Scene overlay server error: %s", exc)

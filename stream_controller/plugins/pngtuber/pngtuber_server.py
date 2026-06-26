@@ -40,8 +40,10 @@ class PngTuberServer:
         if not _FLASK:
             logger.warning("Flask not available — pngtuber server not started")
             return
+        self._ready = threading.Event()
         threading.Thread(target=self._run, daemon=True, name="pngtuber-server").start()
-        logger.info("PNGtuber server started on port %d", _PORT)
+        self._ready.wait(timeout=5.0)
+        logger.info("PNGtuber server ready on port %d", _PORT)
 
     def stop(self) -> None:
         if self._server:
@@ -146,8 +148,11 @@ class PngTuberServer:
             import werkzeug.serving
             server = werkzeug.serving.make_server("localhost", _PORT, app, threaded=True)
             self._server = server
+            self._ready.set()
             server.serve_forever()
         except OSError as exc:
+            self._ready.set()
             logger.error("PNGtuber server failed on port %d: %s", _PORT, exc)
         except Exception as exc:
+            self._ready.set()
             logger.error("PNGtuber server error: %s", exc)

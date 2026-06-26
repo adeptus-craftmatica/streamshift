@@ -36,11 +36,13 @@ class TimerOverlayServer:
         if not _FLASK:
             logger.warning("Flask not available — timer overlay server not started")
             return
+        self._ready = threading.Event()
         self._thread = threading.Thread(
             target=self._run, daemon=True, name="timer-overlay-server"
         )
         self._thread.start()
-        logger.info("Timer overlay server started on port %d", self._port)
+        self._ready.wait(timeout=5.0)
+        logger.info("Timer overlay server ready on port %d", self._port)
 
     def stop(self) -> None:
         if self._server:
@@ -54,6 +56,12 @@ class TimerOverlayServer:
         _log.getLogger("werkzeug").setLevel(_log.ERROR)
         app = Flask(__name__, static_folder=None)
         engine = self._engine
+
+        @app.after_request
+        def _no_cache(response):
+            if "text/html" in response.content_type:
+                response.headers["Cache-Control"] = "no-store"
+            return response
 
         def _timer_data(timer_id: str | None):
             timers = engine.timers
@@ -123,8 +131,10 @@ class TimerOverlayServer:
             import werkzeug.serving
             server = werkzeug.serving.make_server("localhost", self._port, app, threaded=True)
             self._server = server
+            self._ready.set()
             server.serve_forever()
         except OSError as exc:
+            self._ready.set()
             logger.error("Timer overlay server failed to bind port %d: %s", self._port, exc)
         except Exception as exc:
             logger.error("Timer overlay server error: %s", exc)

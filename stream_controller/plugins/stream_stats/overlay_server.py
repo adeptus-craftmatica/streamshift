@@ -16,10 +16,12 @@ class StatsOverlayServer:
         self.base_url = f"http://localhost:{_PORT}"
 
     def start(self) -> None:
+        self._ready = threading.Event()
         self._thread = threading.Thread(
             target=self._run, daemon=True, name="stats-overlay-server"
         )
         self._thread.start()
+        self._ready.wait(timeout=5.0)
 
     def stop(self) -> None:
         if self._server is not None:
@@ -47,6 +49,12 @@ class StatsOverlayServer:
 
             engine = self._engine
 
+            @app.after_request
+            def _no_cache(response):
+                if "text/html" in response.content_type:
+                    response.headers["Cache-Control"] = "no-store"
+                return response
+
             @app.route("/api/state")
             def api_state():
                 return jsonify(engine.live.to_dict())
@@ -72,6 +80,8 @@ class StatsOverlayServer:
                 return render_template("stats_minimal.html")
 
             self._server = make_server("127.0.0.1", _PORT, app)
+            self._ready.set()
             self._server.serve_forever()
         except Exception as exc:
+            self._ready.set()
             logger.error("Stats overlay server failed: %s", exc)

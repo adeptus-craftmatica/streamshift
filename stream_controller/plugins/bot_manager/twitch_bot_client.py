@@ -50,11 +50,13 @@ class TwitchBotClient:
         on_event: Callable[[str, str, dict], None],
         on_status: Callable[[str, str], None],
         on_message_seen: Callable[[], None],
+        on_chat_message: Callable[[str, str, dict], None] | None = None,
     ) -> None:
         self._on_command = on_command
         self._on_event = on_event
         self._on_status = on_status
         self._on_message_seen = on_message_seen
+        self._on_chat_message = on_chat_message
 
         self._ws = None
         self._channel: str = ""
@@ -262,6 +264,9 @@ class TwitchBotClient:
             self._on_event("bits", username, dict(tags, bits=bits_str, message=text.strip()))
 
         stripped = text.strip()
+        if self._on_chat_message:
+            self._on_chat_message(username, stripped, tags)
+
         if stripped.startswith("!"):
             parts = stripped.split(maxsplit=1)
             trigger = parts[0].lower()

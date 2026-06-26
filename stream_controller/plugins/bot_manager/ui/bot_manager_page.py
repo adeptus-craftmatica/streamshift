@@ -39,6 +39,7 @@ from stream_controller.plugins.bot_manager.bot_models import (
     BotRunState,
     DiscordRoute,
     EventResponse,
+    RewardSelection,
     TimedMessage,
 )
 from stream_controller.plugins.bot_manager.bot_repository import BotRepository
@@ -198,7 +199,8 @@ class BotSidebarItem(QFrame):
         else:
             self._dot.setStyleSheet("color:#64748b; font-size:10px;")
             msg = state.status_message or ""
-            if msg and msg not in ("disconnected", "connecting", "connected", ""):
+            _clean = msg.lower().rstrip(".…!").strip()
+            if msg and _clean not in ("disconnected", "connecting", "connected", ""):
                 self._status_lbl.setText(msg)
                 self._status_lbl.show()
                 self.setFixedHeight(80)
@@ -235,7 +237,11 @@ class CommandRow(QFrame):
         trigger_lbl.setFixedWidth(130)
         layout.addWidget(trigger_lbl)
 
-        resp_lbl = QLabel(cmd.response[:60] + ("…" if len(cmd.response) > 60 else ""))
+        if cmd.command_type == "list":
+            preview = f"[List] {cmd.list_title or ''} ({len(cmd.list_items)} items)"
+        else:
+            preview = cmd.response[:60] + ("…" if len(cmd.response) > 60 else "")
+        resp_lbl = QLabel(preview)
         resp_lbl.setStyleSheet("font-size:12px; color:#94a3b8;")
         resp_lbl.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         layout.addWidget(resp_lbl)
@@ -1063,15 +1069,60 @@ class CommandsTab(QWidget):
         self._ed_trigger.setPlaceholderText("command")
         ed_lay.addWidget(self._ed_trigger)
 
-        ed_lay.addWidget(_make_field_label("Response"))
+        # Command type selector
+        type_row = QHBoxLayout()
+        type_lbl = QLabel("Type")
+        type_lbl.setStyleSheet("font-size:12px; color:#94a3b8;")
+        type_row.addWidget(type_lbl)
+        type_row.addStretch()
+        self._ed_type = QComboBox()
+        self._ed_type.addItem("Text response", "text")
+        self._ed_type.addItem("List (items shown in chat)", "list")
+        self._ed_type.currentIndexChanged.connect(self._on_type_changed)
+        self._ed_type.setFixedWidth(220)
+        type_row.addWidget(self._ed_type)
+        ed_lay.addLayout(type_row)
+
+        # Text response section
+        self._ed_text_section = QWidget()
+        text_sec_lay = QVBoxLayout(self._ed_text_section)
+        text_sec_lay.setContentsMargins(0, 0, 0, 0)
+        text_sec_lay.setSpacing(4)
+        text_sec_lay.addWidget(_make_field_label("Response"))
         self._ed_response = QTextEdit()
         self._ed_response.setFixedHeight(80)
-        ed_lay.addWidget(self._ed_response)
-
+        text_sec_lay.addWidget(self._ed_response)
         hints = QLabel("Variables: {user} {channel} {uptime} {count} {commands} {discord_url} {merch_url} {input}")
         hints.setStyleSheet("font-size:10px; color:#475569;")
         hints.setWordWrap(True)
-        ed_lay.addWidget(hints)
+        text_sec_lay.addWidget(hints)
+        ed_lay.addWidget(self._ed_text_section)
+
+        # List section
+        self._ed_list_section = QWidget()
+        list_sec_lay = QVBoxLayout(self._ed_list_section)
+        list_sec_lay.setContentsMargins(0, 0, 0, 0)
+        list_sec_lay.setSpacing(4)
+        list_sec_lay.addWidget(_make_field_label("List Title (shown in chat)"))
+        self._ed_list_title = QLineEdit()
+        self._ed_list_title.setPlaceholderText("e.g. Primed Models Available")
+        list_sec_lay.addWidget(self._ed_list_title)
+        list_sec_lay.addWidget(_make_field_label("List Items (one per line)"))
+        self._ed_list_items = QTextEdit()
+        self._ed_list_items.setFixedHeight(100)
+        self._ed_list_items.setPlaceholderText("Mechanicus Skitarii\nAdeptus Custodes\n…")
+        list_sec_lay.addWidget(self._ed_list_items)
+        list_sec_lay.addWidget(_make_field_label("Triggered by Channel Points reward name (optional)"))
+        self._ed_linked_reward = QLineEdit()
+        self._ed_linked_reward.setPlaceholderText("e.g. Praise the Omnissiah")
+        list_sec_lay.addWidget(self._ed_linked_reward)
+        list_sec_lay.addWidget(_make_field_label("Triggered by minimum bits (0 = disabled)"))
+        self._ed_linked_bits = QSpinBox()
+        self._ed_linked_bits.setRange(0, 1000000)
+        self._ed_linked_bits.setSingleStep(100)
+        list_sec_lay.addWidget(self._ed_linked_bits)
+        ed_lay.addWidget(self._ed_list_section)
+        self._ed_list_section.setVisible(False)
 
         ed_lay.addWidget(_make_field_label("Cooldown (seconds)"))
         self._ed_cooldown = QSpinBox()
@@ -1126,6 +1177,11 @@ class CommandsTab(QWidget):
             row.toggle_requested.connect(self._toggle_command)
             self._list_layout.insertWidget(self._list_layout.count() - 1, row)
 
+    def _on_type_changed(self) -> None:
+        is_list = self._ed_type.currentData() == "list"
+        self._ed_text_section.setVisible(not is_list)
+        self._ed_list_section.setVisible(is_list)
+
     def _apply_filter(self) -> None:
         self._refresh_list()
 
@@ -1149,6 +1205,13 @@ class CommandsTab(QWidget):
         self._ed_response.setPlainText(cmd.response)
         self._ed_cooldown.setValue(cmd.cooldown_seconds)
         self._ed_enabled.setChecked(cmd.enabled)
+        idx = self._ed_type.findData(cmd.command_type or "text")
+        self._ed_type.setCurrentIndex(max(0, idx))
+        self._ed_list_title.setText(cmd.list_title or "")
+        self._ed_list_items.setPlainText("\n".join(cmd.list_items or []))
+        self._ed_linked_reward.setText(cmd.linked_reward or "")
+        self._ed_linked_bits.setValue(cmd.linked_bits or 0)
+        self._on_type_changed()
         self._editor_frame.setVisible(True)
 
     def _cancel_edit(self) -> None:
@@ -1160,7 +1223,15 @@ class CommandsTab(QWidget):
             return
         raw = self._ed_trigger.text().strip().lstrip("!")
         self._editing_cmd.trigger = f"!{raw}" if raw else ""
+        self._editing_cmd.command_type = self._ed_type.currentData() or "text"
         self._editing_cmd.response = self._ed_response.toPlainText()
+        self._editing_cmd.list_title = self._ed_list_title.text().strip()
+        items_text = self._ed_list_items.toPlainText()
+        self._editing_cmd.list_items = [
+            l.strip() for l in items_text.splitlines() if l.strip()
+        ]
+        self._editing_cmd.linked_reward = self._ed_linked_reward.text().strip()
+        self._editing_cmd.linked_bits = self._ed_linked_bits.value()
         self._editing_cmd.cooldown_seconds = self._ed_cooldown.value()
         self._editing_cmd.enabled = self._ed_enabled.isChecked()
         self._db.save_command(self._editing_cmd)
@@ -1833,11 +1904,125 @@ class DiscordRoutesTab(QScrollArea):
 # ─────────────────────────── Bot Editor (tabbed) ────────────────
 
 
+# ─────────────────────────── Tab: Redemptions ───────────────────
+
+
+class RedemptionsTab(QWidget):
+    """Shows reward selections (bits / channel points) made by viewers."""
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._db: BotDatabase | None = None
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(20, 16, 20, 16)
+        root.setSpacing(12)
+
+        toolbar = QHBoxLayout()
+        title = QLabel("Viewer Selections")
+        title.setObjectName("CardTitle")
+        toolbar.addWidget(title)
+        toolbar.addStretch()
+        refresh_btn = QPushButton("⟳ Refresh")
+        refresh_btn.setObjectName("StageToolbarBtn")
+        refresh_btn.clicked.connect(self._refresh)
+        toolbar.addWidget(refresh_btn)
+        root.addLayout(toolbar)
+
+        info = QLabel(
+            "When a viewer redeems a linked channel-point reward or donates linked bits, "
+            "the bot shows them the list in chat and records their typed selection here."
+        )
+        info.setStyleSheet("font-size:11px; color:#64748b;")
+        info.setWordWrap(True)
+        root.addWidget(info)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        self._list_widget = QWidget()
+        self._list_layout = QVBoxLayout(self._list_widget)
+        self._list_layout.setContentsMargins(0, 0, 0, 0)
+        self._list_layout.setSpacing(4)
+        self._list_layout.addStretch()
+        scroll.setWidget(self._list_widget)
+        root.addWidget(scroll)
+
+    def load(self, bot_id: str, db: BotDatabase) -> None:
+        self._db = db
+        self._refresh()
+
+    def _refresh(self) -> None:
+        while self._list_layout.count() > 1:
+            item = self._list_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+        if not self._db:
+            return
+        selections = self._db.list_selections(limit=100)
+        if not selections:
+            empty = QLabel("No selections yet — link a list command to a channel-point reward or bits amount.")
+            empty.setStyleSheet("font-size:12px; color:#64748b;")
+            empty.setWordWrap(True)
+            self._list_layout.insertWidget(0, empty)
+            return
+        for sel in selections:
+            row = self._make_row(sel)
+            self._list_layout.insertWidget(self._list_layout.count() - 1, row)
+
+    def _make_row(self, sel: RewardSelection) -> QFrame:
+        from datetime import datetime
+        frame = QFrame()
+        frame.setObjectName("Card")
+        lay = QHBoxLayout(frame)
+        lay.setContentsMargins(12, 8, 12, 8)
+        lay.setSpacing(10)
+
+        ts_str = datetime.fromtimestamp(sel.ts).strftime("%m/%d %H:%M") if sel.ts else ""
+        ts_lbl = QLabel(ts_str)
+        ts_lbl.setStyleSheet("font-size:10px; color:#475569;")
+        ts_lbl.setFixedWidth(70)
+        lay.addWidget(ts_lbl)
+
+        user_lbl = QLabel(sel.username)
+        user_lbl.setStyleSheet("font-size:12px; color:#7c3aed; font-weight:600;")
+        user_lbl.setFixedWidth(110)
+        lay.addWidget(user_lbl)
+
+        reward_lbl = QLabel(sel.reward_name[:30])
+        reward_lbl.setStyleSheet("font-size:11px; color:#64748b;")
+        reward_lbl.setFixedWidth(150)
+        lay.addWidget(reward_lbl)
+
+        sel_lbl = QLabel(sel.selection[:80])
+        sel_lbl.setStyleSheet("font-size:12px; color:#e2e8f0;")
+        sel_lbl.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        lay.addWidget(sel_lbl)
+
+        source_badge = QLabel(sel.source.upper().replace("_", " "))
+        source_badge.setStyleSheet(
+            "background:#1e293b; color:#38bdf8; font-size:9px; padding:2px 5px; border-radius:3px;"
+        )
+        lay.addWidget(source_badge)
+
+        status_color = "#22c55e" if sel.status == "confirmed" else "#f59e0b"
+        status_lbl = QLabel(sel.status.upper())
+        status_lbl.setStyleSheet(
+            f"background:#1e293b; color:{status_color}; font-size:9px; padding:2px 5px; border-radius:3px;"
+        )
+        lay.addWidget(status_lbl)
+
+        return frame
+
+
+# ─────────────────────────── BotEditorWidget ────────────────────
+
+
 class BotEditorWidget(QWidget):
     save_requested = Signal(object)
     delete_requested = Signal(str)
 
-    TABS = ["General", "Commands", "Timed Messages", "Event Responses", "Discord Routes", "Loyalty", "Activity"]
+    TABS = ["General", "Commands", "Timed Messages", "Event Responses", "Discord Routes", "Loyalty", "Redemptions", "Activity"]
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -1865,6 +2050,7 @@ class BotEditorWidget(QWidget):
         self._events_tab = EventResponsesTab()
         self._discord_routes_tab = DiscordRoutesTab()
         self._loyalty_tab = LoyaltyTab()
+        self._redemptions_tab = RedemptionsTab()
         self._activity_tab = ActivityTab()
 
         tab_pages = [
@@ -1874,6 +2060,7 @@ class BotEditorWidget(QWidget):
             self._events_tab,
             self._discord_routes_tab,
             self._loyalty_tab,
+            self._redemptions_tab,
             self._activity_tab,
         ]
 
@@ -1907,6 +2094,7 @@ class BotEditorWidget(QWidget):
         self._events_tab.load(bot.bot_id, db)
         self._loyalty_tab.load(bot.bot_id, db)
         self._discord_routes_tab.load(bot.bot_id, db)
+        self._redemptions_tab.load(bot.bot_id, db)
 
     def update_activity(self, activities: list[BotActivity]) -> None:
         self._activity_tab.update_activity(activities)
