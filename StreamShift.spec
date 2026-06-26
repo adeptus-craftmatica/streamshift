@@ -1,10 +1,19 @@
 # -*- mode: python ; coding: utf-8 -*-
 import sys
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_submodules, collect_data_files
 
 ROOT = Path(SPECPATH)
 
 block_cipher = None
+
+# Collect every stream_controller submodule so plugin imports resolve correctly
+# even though plugins are loaded dynamically at runtime.
+_sc_modules = collect_submodules('stream_controller')
+
+# Collect non-Python data files from the stream_controller package
+# (HTML overlays, QSS stylesheets, JSON manifests, images, etc.)
+_sc_datas = collect_data_files('stream_controller', excludes=['**/*.py', '**/*.pyc'])
 
 a = Analysis(
     [str(ROOT / 'main.py')],
@@ -12,9 +21,10 @@ a = Analysis(
     binaries=[],
     datas=[
         (str(ROOT / 'stream_controller' / 'resources'), 'stream_controller/resources'),
-        (str(ROOT / 'stream_controller' / 'plugins'), 'stream_controller/plugins'),
+        *_sc_datas,
     ],
     hiddenimports=[
+        *_sc_modules,
         'PySide6.QtCore',
         'PySide6.QtGui',
         'PySide6.QtWidgets',
@@ -34,6 +44,8 @@ a = Analysis(
         'keyring.backends.fail',
         'certifi',
         'websocket',
+        'sqlite3',
+        '_sqlite3',
     ],
     hookspath=[],
     hooksconfig={},
@@ -62,7 +74,9 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=str(ROOT / 'stream_controller' / 'resources' / 'icon.icns') if sys.platform == 'darwin' else None,
+    icon=str(ROOT / 'stream_controller' / 'resources' / 'icon.icns') if sys.platform == 'darwin'
+        else str(ROOT / 'stream_controller' / 'resources' / 'icon.ico') if sys.platform == 'win32'
+        else None,
 )
 
 coll = COLLECT(
@@ -85,8 +99,8 @@ if sys.platform == 'darwin':
         info_plist={
             'CFBundleName': 'StreamShift',
             'CFBundleDisplayName': 'StreamShift',
-            'CFBundleShortVersionString': '1.0.3',
-            'CFBundleVersion': '1.0.3',
+            'CFBundleShortVersionString': '1.0.4',
+            'CFBundleVersion': '1.0.4',
             'NSMicrophoneUsageDescription': 'StreamShift uses the microphone for PNGtuber avatar animation.',
             'NSHighResolutionCapable': True,
         },
