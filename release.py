@@ -222,7 +222,12 @@ def commit_and_tag(version: str) -> str:
     success(f"Tag {tag} created")
 
     info("Pushing to GitHub…")
-    run(["git", "push", "origin", "HEAD"])
+    # If the remote branch already exists, force-push so local always wins.
+    remote_exists = run_output(["git", "ls-remote", "--heads", "origin", "main"])
+    if remote_exists:
+        run(["git", "push", "origin", "main", "--force"])
+    else:
+        run(["git", "push", "origin", "HEAD"])
     run(["git", "push", "origin", tag])
     success("Pushed to GitHub")
 

@@ -85,8 +85,8 @@ if sys.platform == 'darwin':
         info_plist={
             'CFBundleName': 'StreamShift',
             'CFBundleDisplayName': 'StreamShift',
-            'CFBundleShortVersionString': '1.0.1',
-            'CFBundleVersion': '1.0.1',
+            'CFBundleShortVersionString': '1.0.2',
+            'CFBundleVersion': '1.0.2',
             'NSMicrophoneUsageDescription': 'StreamShift uses the microphone for PNGtuber avatar animation.',
             'NSHighResolutionCapable': True,
         },
