@@ -11,15 +11,24 @@ credentials are stored in the system keychain via keyring_helper.
 import json
 import logging
 import mimetypes
+import ssl
 import urllib.error
 import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable
 
 logger = logging.getLogger(__name__)
 
 _BASE = "https://bsky.social/xrpc"
+
+
+def _ssl_context() -> ssl.SSLContext:
+    """Return an SSL context using certifi's CA bundle, falling back to the default."""
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except Exception:
+        return ssl.create_default_context()
 
 
 def _post(endpoint: str, payload: dict, token: str | None = None) -> dict:
@@ -30,7 +39,7 @@ def _post(endpoint: str, payload: dict, token: str | None = None) -> dict:
         headers["Authorization"] = f"Bearer {token}"
     req = urllib.request.Request(url, data=body, headers=headers, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=15, context=_ssl_context()) as resp:
             return json.loads(resp.read())
     except urllib.error.HTTPError as exc:
         raw = exc.read().decode(errors="replace")
@@ -50,7 +59,7 @@ def _post_bytes(endpoint: str, data: bytes, mime: str, token: str) -> dict:
     }
     req = urllib.request.Request(url, data=data, headers=headers, method="POST")
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=30, context=_ssl_context()) as resp:
             return json.loads(resp.read())
     except urllib.error.HTTPError as exc:
         raw = exc.read().decode(errors="replace")
@@ -102,6 +111,10 @@ class BlueSkyClient:
         self._access_jwt = ""
         self._did = ""
         self._handle = ""
+
+    def _require_auth(self) -> None:
+        if not self.connected:
+            raise BlueSkyError("Not connected to Bluesky. Go to Accounts and connect first.")
 
     def post_text(self, text: str) -> dict:
         """Create a plain-text post. Returns the created record URI/CID."""
