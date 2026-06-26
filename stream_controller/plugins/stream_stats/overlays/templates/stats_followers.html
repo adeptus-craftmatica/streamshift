@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Followers</title>
+<link rel="stylesheet" href="/static/stats.css">
+<style>body{display:flex;align-items:flex-start;justify-content:flex-start;padding:16px;min-height:100vh}</style>
+</head>
+<body>
+<div class="fol-wrap">
+  <div class="fol-icon">🫂</div>
+  <div class="fol-col">
+    <div class="fol-label">Followers</div>
+    <div class="fol-count" id="total">–</div>
+    <div class="fol-gained">+<span id="gained">0</span> this stream</div>
+  </div>
+  <div style="width:1px;height:40px;background:rgba(255,255,255,.1)"></div>
+  <div class="fol-col">
+    <div class="fol-label">Latest</div>
+    <div style="font-size:15px;font-weight:600;color:var(--green)" id="latest">—</div>
+  </div>
+</div>
+<script src="/static/stats.js"></script>
+<script>
+window.onStatsUpdate = function(s){
+  document.getElementById('total').textContent  = statsFmt(s.total_followers);
+  document.getElementById('gained').textContent = statsFmt(s.followers_gained);
+  document.getElementById('latest').textContent = s.latest_follower || '—';
+};
+</script>
+</body>
+</html>

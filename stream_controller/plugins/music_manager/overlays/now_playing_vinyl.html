@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Now Playing — Vinyl</title>
+  <link rel="stylesheet" href="/static/now_playing.css">
+</head>
+<body class="layout-vinyl">
+<div id="now-playing-root" class="vinyl-overlay">
+
+  <!-- Spinning record -->
+  <div class="vinyl-record-wrap">
+    <div class="vinyl-record" id="vinyl-disc">
+      <svg class="vinyl-svg" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="100" cy="100" r="96" fill="#0d1820" stroke="#1a2c3d" stroke-width="0.5"/>
+        <circle cx="100" cy="100" r="88" fill="none" stroke="#1a2c3d" stroke-width="0.4"/>
+        <circle cx="100" cy="100" r="80" fill="none" stroke="#162434" stroke-width="0.4"/>
+        <circle cx="100" cy="100" r="72" fill="none" stroke="#1a2c3d" stroke-width="0.4"/>
+        <circle cx="100" cy="100" r="64" fill="none" stroke="#162434" stroke-width="0.4"/>
+        <circle cx="100" cy="100" r="56" fill="none" stroke="#1a2c3d" stroke-width="0.4"/>
+        <circle cx="100" cy="100" r="48" fill="none" stroke="#162434" stroke-width="0.3"/>
+        <ellipse cx="75" cy="70" rx="18" ry="10" fill="rgba(255,255,255,0.03)" transform="rotate(-30 75 70)"/>
+        <circle cx="100" cy="100" r="34" class="vinyl-label-bg"/>
+        <circle cx="100" cy="100" r="4" fill="#0a0f15"/>
+        <circle id="vinyl-progress-ring" cx="100" cy="100" r="42"
+          fill="none" stroke-width="4" stroke-linecap="round"
+          transform="rotate(-90 100 100)"
+          style="stroke-dasharray:263.9;stroke-dashoffset:263.9"/>
+      </svg>
+    </div>
+  </div>
+
+  <!-- Info panel -->
+  <div class="vinyl-info">
+    <div class="vinyl-status-row">
+      <div class="vinyl-dot" id="now-dot"></div>
+      <span class="vinyl-now-label">Now Playing</span>
+    </div>
+    <div class="vinyl-title-wrap">
+      <span class="vinyl-info-title" id="now-title">—</span>
+    </div>
+    <div class="vinyl-artist-wrap">
+      <span class="vinyl-info-artist" id="now-artist"></span>
+    </div>
+    <div class="vinyl-time-row">
+      <span id="now-position">0:00</span>
+      <span class="vinyl-time-sep">/</span>
+      <span id="now-duration">0:00</span>
+    </div>
+    <div class="vinyl-progress-wrap">
+      <div class="vinyl-progress-fill" id="now-progress-fill" style="width:0%"></div>
+    </div>
+  </div>
+
+</div>
+<script src="/static/now_playing.js"></script>
+<script>
+  startNowPlaying({
+    interval: 500,
+    onUpdate: function(s) {
+      var disc    = document.getElementById('vinyl-disc');
+      var dot     = document.getElementById('now-dot');
+      var playing = s.status === 'playing';
+      if (disc) disc.classList.toggle('spinning', playing);
+      if (dot)  dot.classList.toggle('paused', !playing);
+    },
+    onRaf: function(pos, latest) {
+      var ring = document.getElementById('vinyl-progress-ring');
+      if (!ring || !latest || !latest.duration) return;
+      var circ = 2 * Math.PI * 42;
+      var pct  = Math.min(1, pos / latest.duration);
+      ring.style.strokeDashoffset = (circ * (1 - pct)).toFixed(4);
+    }
+  });
+</script>
+</body>
+</html>

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Now Playing — Ticker</title>
+  <link rel="stylesheet" href="/static/now_playing.css">
+</head>
+<body class="layout-ticker">
+<div id="now-playing-root" class="ticker-overlay">
+  <div class="ticker-badge">
+    <div class="ticker-dot" id="now-dot"></div>
+    <span class="ticker-label">Now Playing</span>
+  </div>
+  <div class="ticker-sep"></div>
+  <div class="ticker-content">
+    <div class="ticker-scroll" id="now-title">Loading…</div>
+  </div>
+  <div class="ticker-sep"></div>
+  <div class="ticker-progress">
+    <div class="ticker-time"><span id="now-position">0:00</span> / <span id="now-duration">0:00</span></div>
+    <div class="progress-wrap">
+      <div class="progress-fill" id="now-progress-fill" style="width:0%"></div>
+    </div>
+  </div>
+</div>
+<script src="/static/now_playing.js"></script>
+<script>
+  startNowPlaying({
+    interval: 500,
+    noMarquee: true,
+    hideWhenStopped: true,
+    onTrackChange: function(s) {
+      var el = document.getElementById('now-title');
+      if (el) el.textContent = s.artist ? s.artist + '  —  ' + s.title : s.title;
+    }
+  });
+</script>
+</body>
+</html>

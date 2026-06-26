@@ -1,0 +1,7 @@
+{
+  "name": "Music Manager",
+  "version": "0.1.0",
+  "description": "Local music playback, playlist management, and browser-source Now Playing overlays for streamers.",
+  "author": "StreamShift",
+  "entry_point": "plugin:MusicManagerPlugin"
+}

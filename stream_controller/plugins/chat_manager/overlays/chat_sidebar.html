@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Chat Sidebar</title>
+  <link rel="stylesheet" href="/static/chat.css">
+  <style>
+    .sidebar-root {
+      width:100%; height:100vh;
+      display:flex; flex-direction:column; justify-content:flex-end;
+      padding:10px 8px;
+    }
+    .sidebar-header {
+      display:flex; align-items:center; gap:8px;
+      padding:6px 10px 8px;
+      border-bottom:1px solid rgba(255,255,255,0.06);
+      margin-bottom:6px;
+    }
+    .sidebar-header-dot {
+      width:7px; height:7px; border-radius:50%;
+      background:var(--accent);
+      animation:pulse 1.6s ease-in-out infinite;
+    }
+    @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+    .sidebar-header-label {
+      font-size:0.72em; text-transform:uppercase; letter-spacing:0.1em;
+      color:var(--accent); font-weight:700;
+    }
+    #sidebar-feed {
+      display:flex; flex-direction:column; gap:4px;
+      overflow:hidden;
+    }
+    .s-msg {
+      display:flex; flex-direction:column; gap:1px;
+      padding:6px 10px;
+      background:rgba(255,255,255,0.03);
+      border-radius:8px;
+      border-left:2px solid var(--msg-color, var(--accent));
+      animation:slideIn 0.22s ease;
+    }
+    @keyframes slideIn{from{opacity:0;transform:translateX(-6px)}to{opacity:1;transform:none}}
+    .s-msg.fade-out{opacity:0;transition:opacity 0.4s;}
+    .s-name {
+      font-size:0.82em; font-weight:700;
+      color:var(--msg-color, var(--accent));
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    }
+    .s-text {
+      font-size:0.88em; color:var(--text-hi);
+      line-height:1.4; word-break:break-word;
+      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;
+    }
+    .sidebar-wrap {
+      background:rgba(var(--bg-rgb,13,13,15),var(--bg-opacity));
+      backdrop-filter:blur(10px);
+      border-radius:12px;
+      border:1px solid rgba(255,255,255,0.06);
+      overflow:hidden;
+      padding:4px 0 6px;
+    }
+  </style>
+</head>
+<body>
+<div class="sidebar-root">
+  <div class="sidebar-wrap">
+    <div class="sidebar-header">
+      <div class="sidebar-header-dot"></div>
+      <span class="sidebar-header-label">Live Chat</span>
+    </div>
+    <div id="sidebar-feed"></div>
+  </div>
+</div>
+<script src="/static/chat.js"></script>
+<script>
+  (function(){
+    function param(k,d){var m=location.search.match(new RegExp('[?&]'+k+'=([^&]*)'));return m?decodeURIComponent(m[1]):d;}
+    function hexRgb(h){h=h.replace('#','');if(h.length===3)h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];var n=parseInt(h,16);return[(n>>16)&255,(n>>8)&255,n&255].join(',');}
+    var r=document.documentElement;
+    var bg=param('bg','0d0d0f'),text=param('text','f0f0ff');
+    r.style.setProperty('--accent','#'+param('accent','7c3aed'));
+    r.style.setProperty('--bg','#'+bg);
+    r.style.setProperty('--bg-rgb',hexRgb(bg));
+    r.style.setProperty('--bg-opacity',(parseInt(param('opacity','90'))/100).toFixed(2));
+    r.style.setProperty('--text-hi','#'+text);
+    r.style.setProperty('--text-lo','rgba('+hexRgb(text)+',0.60)');
+    r.style.setProperty('--font-size',param('size','14')+'px');
+
+    var feed=document.getElementById('sidebar-feed');
+    var max=parseInt(param('max','8'));
+    var fade=parseInt(param('fade','0'))*1000;
+    var _lastId='';
+
+    function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+    function addMsg(msg){
+      var el=document.createElement('div');
+      el.className='s-msg';
+      el.style.setProperty('--msg-color',msg.color||'var(--accent)');
+      var badges=(msg.badges||[]).join(' ');
+      el.innerHTML=
+        '<div class="s-name">'+(badges?esc(badges)+' ':'')+esc(msg.display_name)+'</div>'+
+        '<div class="s-text">'+esc(msg.text)+'</div>';
+      feed.appendChild(el);
+      while(feed.children.length>max) feed.removeChild(feed.firstChild);
+      if(fade>0){
+        setTimeout(function(){el.classList.add('fade-out');},fade);
+        setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el);},fade+500);
+      }
+    }
+
+    function poll(){
+      fetch('/api/messages?since='+encodeURIComponent(_lastId))
+        .then(function(r){return r.json();})
+        .then(function(d){
+          var msgs=(d.messages||[]).filter(function(m){return !m.deleted;});
+          if(msgs.length){_lastId=msgs[msgs.length-1].id;msgs.forEach(addMsg);}
+        }).catch(function(){});
+    }
+    setInterval(poll,parseInt(param('interval','750')));
+    poll();
+  })();
+</script>
+</body>
+</html>

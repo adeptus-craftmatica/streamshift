@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Now Playing — Corner</title>
+  <link rel="stylesheet" href="/static/now_playing.css">
+</head>
+<body class="layout-corner">
+<div id="now-playing-root" class="corner-overlay">
+  <div class="corner-dot" id="now-dot"></div>
+  <div class="corner-body">
+    <div class="corner-label">Now Playing</div>
+    <div class="corner-title-wrap">
+      <span class="corner-title" id="now-title">Loading…</span>
+    </div>
+  </div>
+</div>
+<script src="/static/now_playing.js"></script>
+<script>
+  startNowPlaying({
+    interval: 500,
+    onUpdate: function(s) {
+      var dot = document.getElementById('now-dot');
+      if (dot) dot.classList.toggle('paused', s.status !== 'playing');
+    }
+  });
+</script>
+</body>
+</html>

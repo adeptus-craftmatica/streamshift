@@ -1,0 +1,7 @@
+{
+  "name": "Social Manager",
+  "version": "0.1.0",
+  "description": "Post to Bluesky and social media from StreamShift. Includes going-live templates, Stage View quick-post card, and chat bot commands.",
+  "author": "StreamShift",
+  "entry_point": "plugin:SocialManagerPlugin"
+}

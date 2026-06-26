@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Chat Minimal</title>
+  <link rel="stylesheet" href="/static/chat.css">
+  <style>
+    .minimal-root {
+      width:100%; height:100vh;
+      display:flex; align-items:flex-end; padding:10px;
+    }
+    .minimal-pill {
+      display:flex; align-items:center; gap:10px;
+      background:rgba(var(--bg-rgb,13,13,15),var(--bg-opacity));
+      backdrop-filter:blur(10px);
+      border-radius:999px;
+      padding:7px 16px 7px 12px;
+      border:1px solid rgba(255,255,255,0.08);
+      max-width:100%;
+      animation:pillIn 0.3s cubic-bezier(.34,1.56,.64,1);
+    }
+    .minimal-pill.hiding {
+      animation:pillOut 0.35s ease forwards;
+    }
+    @keyframes pillIn  { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+    @keyframes pillOut { to{opacity:0;transform:translateY(6px)} }
+    .minimal-dot {
+      width:8px; height:8px; border-radius:50%;
+      background:var(--accent); flex-shrink:0;
+      animation:pulse 1.4s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.5;transform:scale(.8)} }
+    .minimal-name {
+      font-weight:700; font-size:0.88em;
+      color:var(--msg-color,var(--accent));
+      white-space:nowrap; flex-shrink:0;
+    }
+    .minimal-sep { color:var(--text-lo); font-size:0.8em; flex-shrink:0; }
+    .minimal-text {
+      font-size:0.9em; color:var(--text-hi);
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    }
+  </style>
+</head>
+<body>
+<div class="minimal-root">
+  <div class="minimal-pill" id="pill" style="display:none">
+    <div class="minimal-dot"></div>
+    <span class="minimal-name" id="pill-name">username</span>
+    <span class="minimal-sep">·</span>
+    <span class="minimal-text" id="pill-text">message</span>
+  </div>
+</div>
+<script src="/static/chat.js"></script>
+<script>
+(function(){
+  function param(k,d){var m=location.search.match(new RegExp('[?&]'+k+'=([^&]*)'));return m?decodeURIComponent(m[1]):d;}
+  function hexRgb(h){h=h.replace('#','');if(h.length===3)h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];var n=parseInt(h,16);return[(n>>16)&255,(n>>8)&255,n&255].join(',');}
+
+  var R=document.documentElement;
+  var bg=param('bg','0d0d0f'), txt=param('text','f0f0ff');
+  R.style.setProperty('--accent','#'+param('accent','7c3aed'));
+  R.style.setProperty('--bg','#'+bg);
+  R.style.setProperty('--bg-rgb',hexRgb(bg));
+  R.style.setProperty('--bg-opacity',(parseInt(param('opacity','90'))/100).toFixed(2));
+  R.style.setProperty('--text-hi','#'+txt);
+  R.style.setProperty('--text-lo','rgba('+hexRgb(txt)+',0.60)');
+  R.style.setProperty('--font-size',param('size','14')+'px');
+
+  var pill   = document.getElementById('pill');
+  var nameEl = document.getElementById('pill-name');
+  var textEl = document.getElementById('pill-text');
+  var duration = parseInt(param('duration','5'))*1000;
+
+  // Track last *shown* id separately from last *fetched* id
+  var _fetchedId = '';
+  var _shownId   = '';
+  var _hideTimer = null;
+
+  function show(msg) {
+    if (msg.id === _shownId) return;   // already showing this one
+    _shownId = msg.id;
+    if (_hideTimer) { clearTimeout(_hideTimer); _hideTimer = null; }
+
+    // Reset animation by replacing class
+    pill.classList.remove('hiding');
+    pill.style.setProperty('--msg-color', msg.color || 'var(--accent)');
+    var badges = (msg.badges||[]).join(' ');
+    nameEl.textContent = (badges ? badges+' ' : '') + msg.display_name;
+    textEl.textContent = msg.text;
+    // Force reflow so animation replays
+    pill.style.display = 'none';
+    void pill.offsetWidth;
+    pill.style.display = 'flex';
+
+    _hideTimer = setTimeout(function(){
+      pill.classList.add('hiding');
+      setTimeout(function(){
+        pill.style.display='none';
+        pill.classList.remove('hiding');
+      }, 400);
+    }, duration);
+  }
+
+  function poll(){
+    fetch('/api/messages?since='+encodeURIComponent(_fetchedId))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var msgs = (d.messages||[]).filter(function(m){ return !m.deleted; });
+        if (msgs.length > 0) {
+          // Update fetch cursor first, then show the newest
+          _fetchedId = msgs[msgs.length-1].id;
+          show(msgs[msgs.length-1]);
+        }
+      })
+      .catch(function(){});
+  }
+
+  setInterval(poll, parseInt(param('interval','600')));
+  poll();
+})();
+</script>
+</body>
+</html>

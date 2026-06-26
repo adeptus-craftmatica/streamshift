@@ -1,0 +1,7 @@
+{
+  "name": "Scene Designer",
+  "version": "1.0.0",
+  "author": "StreamShift",
+  "entry_point": "plugin:SceneDesignerPlugin",
+  "description": "Visual scene editor — build scenes with images, browser sources, text, video, and more. Saves directly to OBS."
+}

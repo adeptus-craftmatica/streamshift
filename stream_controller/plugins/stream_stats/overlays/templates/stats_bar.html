@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Stats Bar</title>
+<link rel="stylesheet" href="/static/stats.css">
+<style>body{display:flex;align-items:flex-start;justify-content:flex-start;padding:16px;min-height:100vh}</style>
+</head>
+<body>
+<div class="bar">
+  <div class="bar-item"><span class="bar-val green" id="total">–</span><span class="bar-lbl">Followers</span></div>
+  <div class="sep"></div>
+  <div class="bar-item"><span class="bar-val accent" id="gained">–</span><span class="bar-lbl">Gained</span></div>
+  <div class="sep"></div>
+  <div class="bar-item"><span class="bar-val gold" id="bits">–</span><span class="bar-lbl">Bits</span></div>
+  <div class="sep"></div>
+  <div class="bar-item"><span class="bar-val pink" id="subs">–</span><span class="bar-lbl">Subs</span></div>
+  <div class="sep"></div>
+  <div class="bar-item"><span class="bar-val blue" id="gifted">–</span><span class="bar-lbl">Gifted</span></div>
+</div>
+<script src="/static/stats.js"></script>
+<script>
+window.onStatsUpdate = function(s){
+  document.getElementById('total').textContent  = statsFmt(s.total_followers);
+  document.getElementById('gained').textContent = '+' + statsFmt(s.followers_gained);
+  document.getElementById('bits').textContent   = statsFmt(s.bits_donated);
+  document.getElementById('subs').textContent   = statsFmt(s.new_subs);
+  document.getElementById('gifted').textContent = statsFmt(s.gifted_subs);
+};
+</script>
+</body>
+</html>

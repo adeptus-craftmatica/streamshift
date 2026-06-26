@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Timer — Neon</title>
+  <link rel="stylesheet" href="/static/timer.css">
+</head>
+<body>
+<div class="neon-root">
+  <div class="neon-label"  id="neon-label">Timer</div>
+  <div class="neon-time"   id="neon-time">00:00</div>
+  <div class="neon-status" id="neon-status">READY</div>
+</div>
+<div class="neon-scanlines"></div>
+<script src="/static/timer.js"></script>
+<script>
+startTimer({
+  onRaf: function(pos) {
+    document.getElementById('neon-time').textContent = fmtSecs(pos);
+  },
+  onUpdate: function(s) {
+    document.getElementById('neon-label').textContent  = (s.label || 'Timer').toUpperCase();
+    document.getElementById('neon-status').textContent = s.status.toUpperCase();
+  }
+});
+</script>
+</body>
+</html>

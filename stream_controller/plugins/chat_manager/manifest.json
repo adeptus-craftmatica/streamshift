@@ -1,0 +1,7 @@
+{
+  "name": "Chat Manager",
+  "version": "0.1.0",
+  "description": "Live Twitch chat, moderation tools, and browser-source chat overlays for streamers.",
+  "author": "StreamShift",
+  "entry_point": "plugin:ChatManagerPlugin"
+}

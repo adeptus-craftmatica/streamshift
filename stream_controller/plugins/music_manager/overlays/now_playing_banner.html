@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Now Playing — Banner</title>
+  <link rel="stylesheet" href="/static/now_playing.css">
+</head>
+<body class="layout-banner">
+<div id="now-playing-root" class="banner-overlay">
+  <div class="banner-accent"></div>
+  <div class="banner-art" id="banner-art">♪</div>
+
+  <div class="banner-body">
+    <div class="banner-label">Now Playing</div>
+    <div class="banner-title-wrap">
+      <span class="banner-title" id="now-title">Loading…</span>
+    </div>
+    <div class="banner-artist-wrap">
+      <span class="banner-artist" id="now-artist"></span>
+    </div>
+  </div>
+
+  <div class="banner-right">
+    <div class="banner-dot" id="now-dot"></div>
+    <div class="banner-time">
+      <span id="now-position">0:00</span>
+      <span style="opacity:0.4"> / </span>
+      <span id="now-duration">0:00</span>
+    </div>
+  </div>
+
+  <!-- Progress bar pinned to bottom edge -->
+  <div class="banner-progress">
+    <div class="banner-progress-fill" id="now-progress-fill" style="width:0%"></div>
+  </div>
+</div>
+<script src="/static/now_playing.js"></script>
+<script>
+  startNowPlaying({
+    interval: 500,
+    onUpdate: function(s) {
+      var dot = document.getElementById('now-dot');
+      if (dot) dot.classList.toggle('paused', s.status !== 'playing');
+    }
+  });
+</script>
+</body>
+</html>

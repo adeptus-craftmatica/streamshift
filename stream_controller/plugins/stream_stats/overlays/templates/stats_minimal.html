@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Stats Minimal</title>
+<link rel="stylesheet" href="/static/stats.css">
+<style>
+:root{--accent:#7c3aed;--accent-rgb:124,58,237;--bg:#0d0d0f;--bg-rgb:13,13,15;--bg-opacity:0.92;--text-hi:#f0f0ff;--text-lo:rgba(240,240,255,0.55);--green:#22c55e;--gold:#f59e0b;--pink:#ec4899;--blue:#38bdf8}
+body{display:flex;align-items:flex-start;justify-content:flex-start;padding:16px;min-height:100vh}
+</style>
+</head>
+<body>
+<div class="min">
+  <div class="min-row"><span class="min-label">Followers</span><span class="min-val green" id="total">–</span></div>
+  <div class="min-row"><span class="min-label">Gained</span><span class="min-val accent" id="gained">–</span></div>
+  <div class="min-row"><span class="min-label">Bits</span><span class="min-val gold" id="bits">–</span></div>
+  <div class="min-row"><span class="min-label">Subs</span><span class="min-val pink" id="subs">–</span></div>
+  <div class="min-row"><span class="min-label">Gifted</span><span class="min-val blue" id="gifted">–</span></div>
+</div>
+<script src="/static/stats.js"></script>
+<script>
+window.onStatsUpdate = function(s){
+  document.getElementById('total').textContent  = statsFmt(s.total_followers);
+  document.getElementById('gained').textContent = '+' + statsFmt(s.followers_gained);
+  document.getElementById('bits').textContent   = statsFmt(s.bits_donated);
+  document.getElementById('subs').textContent   = statsFmt(s.new_subs);
+  document.getElementById('gifted').textContent = statsFmt(s.gifted_subs);
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+{
+  "name": "PNGtuber",
+  "version": "0.1.0",
+  "description": "Mic-reactive PNGtuber avatar with OBS browser source overlay and SSE state push.",
+  "author": "StreamShift",
+  "entry_point": "plugin:PngTuberPlugin"
+}

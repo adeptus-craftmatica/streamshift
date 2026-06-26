@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Stats Ticker</title>
+<link rel="stylesheet" href="/static/stats.css">
+<style>
+body{margin:0;padding:0;background:transparent}
+.ticker{width:100vw;position:fixed;bottom:0;left:0}
+</style>
+</head>
+<body>
+<div class="ticker">
+  <div class="ticker-inner" id="tick">Loading…</div>
+</div>
+<script src="/static/stats.js"></script>
+<script>
+window.onStatsUpdate = function(s){
+  document.getElementById('tick').innerHTML =
+    '<span>👥 Followers <b>' + statsFmt(s.total_followers) + '</b></span>' +
+    '<span>📈 Gained <b>+' + statsFmt(s.followers_gained) + '</b></span>' +
+    '<span>💜 Subs <b>' + statsFmt(s.new_subs) + '</b></span>' +
+    '<span>🎁 Gifted <b>' + statsFmt(s.gifted_subs) + '</b></span>' +
+    '<span>💰 Bits <b>' + statsFmt(s.bits_donated) + '</b></span>' +
+    (s.latest_follower ? '<span>🫂 Latest Follow <b>' + s.latest_follower + '</b></span>' : '');
+};
+</script>
+</body>
+</html>

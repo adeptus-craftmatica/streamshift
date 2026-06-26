@@ -1,0 +1,7 @@
+{
+  "name": "Example Plugin",
+  "version": "0.1.0",
+  "description": "Demonstrates page registration, dashboard panels, commands, and lifecycle events.",
+  "author": "StreamShift",
+  "entry_point": "plugin:ExamplePlugin"
+}

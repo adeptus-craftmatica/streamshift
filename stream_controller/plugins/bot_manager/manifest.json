@@ -1,0 +1,7 @@
+{
+  "name": "Bot Manager",
+  "version": "1.0.0",
+  "description": "Multi-platform bot manager for Twitch and Discord — commands, timed messages, and event responses.",
+  "author": "StreamShift",
+  "entry_point": "plugin:BotManagerPlugin"
+}

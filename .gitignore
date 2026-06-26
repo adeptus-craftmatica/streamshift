@@ -1,0 +1,47 @@
+# ── AI tool directories ────────────────────────────────────────────────────────
+.claude/
+.openai/
+.cursor/
+.copilot/
+.aider*
+.continue/
+
+# ── Python ─────────────────────────────────────────────────────────────────────
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+dist/
+build/
+*.egg
+
+# ── IDE / editors ──────────────────────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── Credentials & secrets ──────────────────────────────────────────────────────
+# Actual credentials live in ~/.streamshift/ (outside the repo) via macOS Keychain.
+# These patterns catch any accidental drops into the project directory.
+.env
+.env.*
+*.key
+*.pem
+*.secret
+*.token
+secrets.json
+credentials.json
+*_credentials.json
+*_secrets.json
+
+# ── macOS ──────────────────────────────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# ── Logs & temp ────────────────────────────────────────────────────────────────
+*.log
+*.tmp
