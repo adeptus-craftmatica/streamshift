@@ -1,15 +1,27 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
 import sys
 from pathlib import Path
-from PyInstaller.utils.hooks import collect_submodules
 
 ROOT = Path(SPECPATH)
 
 block_cipher = None
 
-# Collect every stream_controller submodule so plugin imports resolve correctly
-# even though plugins are loaded dynamically at runtime via importlib.
-_sc_modules = collect_submodules('stream_controller')
+# Walk the source tree to build hidden imports for every stream_controller
+# module. This is more reliable than collect_submodules() which requires the
+# package to be importable on the build machine.
+def _find_modules(root: Path, pkg: str) -> list[str]:
+    modules = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d != '__pycache__' and not d.startswith('.')]
+        for fname in filenames:
+            if fname.endswith('.py'):
+                rel = Path(dirpath).relative_to(root.parent)
+                mod = str(rel / fname[:-3]).replace(os.sep, '.').replace('/', '.')
+                modules.append(mod)
+    return modules
+
+_sc_modules = _find_modules(ROOT / 'stream_controller', 'stream_controller')
 
 a = Analysis(
     [str(ROOT / 'main.py')],
@@ -98,8 +110,8 @@ if sys.platform == 'darwin':
         info_plist={
             'CFBundleName': 'StreamShift',
             'CFBundleDisplayName': 'StreamShift',
-            'CFBundleShortVersionString': '1.0.5',
-            'CFBundleVersion': '1.0.5',
+            'CFBundleShortVersionString': '1.0.6',
+            'CFBundleVersion': '1.0.6',
             'NSMicrophoneUsageDescription': 'StreamShift uses the microphone for PNGtuber avatar animation.',
             'NSHighResolutionCapable': True,
         },
