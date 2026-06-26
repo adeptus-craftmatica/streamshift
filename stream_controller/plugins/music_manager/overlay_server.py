@@ -30,6 +30,18 @@ class OverlayServer:
         self._port = port
         self._thread: threading.Thread | None = None
         self._server = None
+        self._theme: dict = {
+            "accent":  "3f94bf",
+            "bg":      "0a121c",
+            "text":    "eef6ff",
+            "opacity": 88,
+        }
+
+    def push_theme(self, accent: str = "", bg: str = "", text: str = "", opacity: int = -1) -> None:
+        if accent:  self._theme["accent"]  = accent.lstrip("#")
+        if bg:      self._theme["bg"]      = bg.lstrip("#")
+        if text:    self._theme["text"]    = text.lstrip("#")
+        if opacity >= 0: self._theme["opacity"] = opacity
 
     @property
     def base_url(self) -> str:
@@ -66,6 +78,13 @@ class OverlayServer:
                 response.headers["Cache-Control"] = "no-store"
             return response
 
+        @app.route("/api/theme")
+        def api_theme():
+            resp = Response(json.dumps(self._theme), mimetype="application/json")
+            resp.headers["Access-Control-Allow-Origin"] = "*"
+            resp.headers["Cache-Control"] = "no-cache"
+            return resp
+
         @app.route("/api/state")
         def api_state():
             state = music_state.state
@@ -83,6 +102,7 @@ class OverlayServer:
                 "loop_mode": state.loop_mode.value,
                 "queue_index": state.queue_index,
                 "queue_total": len(state.queue),
+                "_theme": self._theme,
             }
             resp = Response(json.dumps(data), mimetype="application/json")
             resp.headers["Access-Control-Allow-Origin"] = "*"
@@ -124,6 +144,18 @@ class OverlayServer:
         @app.route("/banner")
         def banner():
             return send_from_directory(str(_OVERLAYS_DIR), "now_playing_banner.html")
+
+        @app.route("/cassette")
+        def cassette():
+            return send_from_directory(str(_OVERLAYS_DIR), "now_playing_cassette.html")
+
+        @app.route("/prism")
+        def prism():
+            return send_from_directory(str(_OVERLAYS_DIR), "now_playing_prism.html")
+
+        @app.route("/nebula")
+        def nebula():
+            return send_from_directory(str(_OVERLAYS_DIR), "now_playing_nebula.html")
 
         @app.route("/static/<path:filename>")
         def static_files(filename):

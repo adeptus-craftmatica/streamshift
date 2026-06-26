@@ -357,7 +357,72 @@ class MacroPage(QWidget):
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(self._build_step_library_card(), 1)
+        layout.addWidget(self._build_chat_pool_card())
         return container
+
+    def _build_chat_pool_card(self) -> QFrame:
+        from stream_controller.plugins.macro_manager.chat_pool import ChatMessagePool
+        card, body = create_card("Chat Message Pool", "")
+        card.layout().setContentsMargins(14, 12, 14, 12)
+        body.setSpacing(6)
+
+        hint = QLabel("Messages stored here are available to 'Send Chat Messages Over Time' steps.")
+        hint.setStyleSheet("font-size:10px; color:#475569;")
+        hint.setWordWrap(True)
+        body.addWidget(hint)
+
+        self._pool_list = QListWidget()
+        self._pool_list.setObjectName("MacroActionList")
+        self._pool_list.setMaximumHeight(160)
+        self._pool_list.setSelectionMode(QListWidget.SingleSelection)
+        body.addWidget(self._pool_list)
+
+        self._pool_input = QLineEdit()
+        self._pool_input.setObjectName("OverlayTextField")
+        self._pool_input.setPlaceholderText("New message…")
+        self._pool_input.returnPressed.connect(self._pool_add)
+        body.addWidget(self._pool_input)
+
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(6)
+        add_btn = QPushButton("Add")
+        add_btn.setObjectName("PrimaryButton")
+        add_btn.setFixedHeight(26)
+        add_btn.clicked.connect(self._pool_add)
+        btn_row.addWidget(add_btn)
+        del_btn = QPushButton("Remove")
+        del_btn.setObjectName("SecondaryButton")
+        del_btn.setFixedHeight(26)
+        del_btn.clicked.connect(self._pool_remove)
+        btn_row.addWidget(del_btn)
+        body.addLayout(btn_row)
+
+        self._pool_reload()
+        return card
+
+    def _pool_reload(self) -> None:
+        from stream_controller.plugins.macro_manager.chat_pool import ChatMessagePool
+        self._pool_list.clear()
+        for msg in ChatMessagePool.load():
+            item = QListWidgetItem(msg)
+            item.setToolTip(msg)
+            self._pool_list.addItem(item)
+
+    def _pool_add(self) -> None:
+        from stream_controller.plugins.macro_manager.chat_pool import ChatMessagePool
+        text = self._pool_input.text().strip()
+        if not text:
+            return
+        ChatMessagePool.add(text)
+        self._pool_input.clear()
+        self._pool_reload()
+
+    def _pool_remove(self) -> None:
+        from stream_controller.plugins.macro_manager.chat_pool import ChatMessagePool
+        item = self._pool_list.currentItem()
+        if item:
+            ChatMessagePool.remove(item.text())
+            self._pool_reload()
 
     def _build_step_library_card(self) -> QFrame:
         card, body = create_card("Step Library", "")

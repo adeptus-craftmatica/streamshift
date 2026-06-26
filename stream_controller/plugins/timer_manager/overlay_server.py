@@ -27,6 +27,18 @@ class TimerOverlayServer:
         self._port = port
         self._thread: threading.Thread | None = None
         self._server = None
+        self._theme: dict = {
+            "accent":  "7c3aed",
+            "bg":      "0d0d0f",
+            "text":    "f0f0ff",
+            "opacity": 92,
+        }
+
+    def push_theme(self, accent: str = "", bg: str = "", text: str = "", opacity: int = -1) -> None:
+        if accent:  self._theme["accent"]  = accent.lstrip("#")
+        if bg:      self._theme["bg"]      = bg.lstrip("#")
+        if text:    self._theme["text"]    = text.lstrip("#")
+        if opacity >= 0: self._theme["opacity"] = opacity
 
     @property
     def base_url(self) -> str:
@@ -74,10 +86,18 @@ class TimerOverlayServer:
             target = running[0] if running else (timers[0] if timers else None)
             return target.to_dict() if target else {"id":"","label":"","status":"idle","display":"00:00","progress":0,"color":"7c3aed","mode":"countdown","end_message":"","remaining":0,"elapsed":0}
 
+        @app.route("/api/theme")
+        def api_theme():
+            resp = Response(json.dumps(self._theme), mimetype="application/json")
+            resp.headers["Access-Control-Allow-Origin"] = "*"
+            resp.headers["Cache-Control"] = "no-cache"
+            return resp
+
         @app.route("/api/state")
         def api_state():
             tid = request.args.get("id")
             data = _timer_data(tid)
+            data["_theme"] = self._theme
             resp = Response(json.dumps(data), mimetype="application/json")
             resp.headers["Access-Control-Allow-Origin"] = "*"
             resp.headers["Cache-Control"] = "no-cache"
@@ -118,6 +138,14 @@ class TimerOverlayServer:
         @app.route("/neon")
         def overlay_neon():
             return send_from_directory(str(_OVERLAYS_DIR), "timer_neon.html")
+
+        @app.route("/orbit")
+        def overlay_orbit():
+            return send_from_directory(str(_OVERLAYS_DIR), "timer_orbit.html")
+
+        @app.route("/surge")
+        def overlay_surge():
+            return send_from_directory(str(_OVERLAYS_DIR), "timer_surge.html")
 
         @app.route("/")
         def index():

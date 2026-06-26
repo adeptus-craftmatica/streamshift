@@ -38,15 +38,36 @@
   }
 
   /* ── Apply CSS vars from theme ─────────────────────────────────────────── */
-  function applyTheme() {
+  let _appliedThemeKey = '';
+  function applyTheme(override) {
     const t = window.NP_THEME;
+    const accent   = (override && override.accent)  ? '#' + override.accent  : t.accent;
+    const bgColor  = (override && override.bg)      ? '#' + override.bg      : t.bgColor;
+    const textColor= (override && override.text)    ? '#' + override.text    : t.textColor;
+    const opacity  = (override && override.opacity != null) ? override.opacity / 100 : t.bgOpacity;
+    const key = accent + '|' + bgColor + '|' + textColor + '|' + opacity;
+    if (key === _appliedThemeKey) return;
+    _appliedThemeKey = key;
+    /* Update live NP_THEME so canvas overlays reading it stay current */
+    window.NP_THEME.accent    = accent;
+    window.NP_THEME.bgColor   = bgColor;
+    window.NP_THEME.textColor = textColor;
+    window.NP_THEME.bgOpacity = opacity;
+    const c = (accent || '#000').replace('#', '');
+    const accentRgb = parseInt(c.slice(0,2),16)
+      + ',' + parseInt(c.slice(2,4),16)
+      + ',' + parseInt(c.slice(4,6),16);
     const r = document.documentElement;
-    r.style.setProperty('--accent',     t.accent);
-    r.style.setProperty('--bg-color',   t.bgColor);
-    r.style.setProperty('--bg-opacity', t.bgOpacity);
+    r.style.setProperty('--accent',     accent);
+    r.style.setProperty('--accent-rgb', accentRgb);
+    r.style.setProperty('--bg-color',   bgColor);
+    r.style.setProperty('--bg-opacity', opacity);
     r.style.setProperty('--blur',       t.blur + 'px');
-    r.style.setProperty('--text-hi',    t.textColor);
-    r.style.setProperty('--text-lo',    hexRgba(t.textColor, 0.60));
+    r.style.setProperty('--text-hi',    textColor);
+    r.style.setProperty('--text-lo',    hexRgba(textColor, 0.60));
+    if (window.__onThemeChange) window.__onThemeChange(accent);
+    /* Rebuild circle SVG immediately so new accent colour shows without a track change */
+    if (_latest && el('circle-svg')) renderCircleStatic(_latest);
   }
 
   /* ════════════════════════════════════════════════════════════════════════
@@ -226,7 +247,9 @@
       const r = await fetch('/api/state?_=' + Date.now(), { cache: 'no-store' });
       if (!r.ok) return null;
       _failCount = 0;
-      return await r.json();
+      const data = await r.json();
+      if (data._theme) applyTheme(data._theme);
+      return data;
     } catch {
       _failCount++;
       if (_failCount >= _FAIL_LIMIT && !_reloading) {

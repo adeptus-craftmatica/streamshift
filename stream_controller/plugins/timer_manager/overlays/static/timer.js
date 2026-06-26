@@ -10,12 +10,17 @@
     var n = parseInt(h, 16);
     return [(n>>16)&255, (n>>8)&255, n&255].join(',');
   }
-  function applyTheme() {
+  var _appliedThemeKey = '';
+  function applyThemeObj(t) {
+    var accent  = (t && t.accent)  || param('accent', '7c3aed');
+    var bg      = (t && t.bg)      || param('bg',     '0d0d0f');
+    var text    = (t && t.text)    || param('text',   'f0f0ff');
+    var opacity = (t && t.opacity != null) ? (t.opacity / 100).toFixed(2)
+                : (parseInt(param('opacity', '92')) / 100).toFixed(2);
+    var key = accent + '|' + bg + '|' + text + '|' + opacity;
+    if (key === _appliedThemeKey) return;
+    _appliedThemeKey = key;
     var R = document.documentElement;
-    var accent  = param('accent', '7c3aed');
-    var bg      = param('bg',     '0d0d0f');
-    var text    = param('text',   'f0f0ff');
-    var opacity = (parseInt(param('opacity', '92')) / 100).toFixed(2);
     R.style.setProperty('--accent',      '#' + accent);
     R.style.setProperty('--accent-rgb',  hexRgb(accent));
     R.style.setProperty('--bg',          '#' + bg);
@@ -23,7 +28,9 @@
     R.style.setProperty('--bg-opacity',  opacity);
     R.style.setProperty('--text-hi',     '#' + text);
     R.style.setProperty('--text-lo',     'rgba(' + hexRgb(text) + ',0.55)');
+    if (window.__onThemeChange) window.__onThemeChange(accent);
   }
+  function applyTheme() { applyThemeObj(null); }
 
   var _timerId    = param('id', '');
   var _apiBase    = location.protocol + '//' + location.host;
@@ -68,6 +75,7 @@
       .then(function(r) { return r.json(); })
       .then(function(data) {
         _failCount = 0;
+        if (data._theme) applyThemeObj(data._theme);
         cb(data);
       })
       .catch(function() {

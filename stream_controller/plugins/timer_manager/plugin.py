@@ -86,7 +86,11 @@ class TimerManagerPlugin:
     def _register_page(self, app_context: AppContext) -> None:
         from stream_controller.plugins.timer_manager.ui.timer_page import TimerPage
         overlay_url = self._overlay_server.base_url if self._overlay_server else ""
-        self._page_widget = TimerPage(engine=self._engine, overlay_base_url=overlay_url)
+        self._page_widget = TimerPage(
+            engine=self._engine,
+            overlay_base_url=overlay_url,
+            overlay_server=self._overlay_server,
+        )
         app_context.register_plugin_page(
             page_id="timer_manager",
             title="Timer Manager",

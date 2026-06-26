@@ -1692,6 +1692,40 @@ QFrame#OverlayMockVinylWrap {
     border-radius: 10px;
 }
 
+QFrame#OverlayMockCassette {
+    background: #1c1c1c;
+    border: 1px solid #2e2e2e;
+    border-radius: 8px;
+}
+QFrame#OverlayMockCassetteReel {
+    border-radius: 999px;
+    border: 1.5px solid #444;
+    background: qradialgradient(cx:0.5,cy:0.5,radius:0.5,
+        stop:0 #3a2a1a, stop:0.45 #3a2a1a, stop:0.5 #222, stop:1 #222);
+}
+
+QFrame#OverlayMockPrism {
+    background: qlineargradient(x1:0,y1:0,x2:1,y2:0,
+        stop:0.00 rgba(255,80,80,0.45),
+        stop:0.17 rgba(255,180,40,0.45),
+        stop:0.33 rgba(100,220,80,0.45),
+        stop:0.50 rgba(60,180,220,0.45),
+        stop:0.67 rgba(100,80,220,0.45),
+        stop:0.83 rgba(220,80,200,0.45),
+        stop:1.00 rgba(255,80,80,0.45));
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px;
+}
+
+QFrame#OverlayMockNebula {
+    background: qradialgradient(cx:0.5,cy:0.5,radius:0.8,
+        stop:0 rgba(63,148,191,0.30),
+        stop:0.4 rgba(80,40,180,0.20),
+        stop:1   rgba(6,8,14,0.85));
+    border: 1px solid rgba(63,148,191,0.20);
+    border-radius: 8px;
+}
+
 QFrame#OverlayMockCornerWrap {
     background: rgba(10,18,28,0.55);
     border: 1px solid #1a2e3f;
@@ -2192,6 +2226,22 @@ QLabel#OverlayMockNeonTime {
 }
 QLabel#OverlayMockNeonLabel {
     font-size: 9px; color: rgba(167,139,250,0.6); letter-spacing: 3px;
+}
+
+QFrame#OverlayMockTimerOrbit {
+    background: #0d0d0f;
+    border: 1px solid rgba(124,58,237,0.35); border-radius: 8px;
+}
+
+QFrame#OverlayMockTimerSurge {
+    background: #0d0d0f;
+    border: 1px solid rgba(124,58,237,0.35); border-radius: 8px;
+    overflow: hidden;
+}
+QFrame#OverlayMockSurgeWave {
+    background: qlineargradient(x1:0,y1:0,x2:0,y2:1,
+        stop:0 rgba(124,58,237,0.75), stop:1 rgba(80,20,180,0.10));
+    border: none;
 }
 
 /* ── Scene Manager ──────────────────────────────────────────────────────── */

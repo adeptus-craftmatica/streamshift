@@ -41,10 +41,12 @@ class TimerPage(QWidget):
         self,
         engine: "TimerEngine",
         overlay_base_url: str = "",
+        overlay_server=None,
     ) -> None:
         super().__init__()
         self._engine = engine
         self._overlay_base_url = overlay_base_url
+        self._overlay_server = overlay_server
 
         # overlay customisation state
         self._ov_accent = "7c3aed"
@@ -401,6 +403,22 @@ class TimerPage(QWidget):
                 "preview": self._make_preview_neon,
                 "mock_name": "OverlayMockTimerNeon",
             },
+            {
+                "name": "Orbit",
+                "path": "/orbit",
+                "obs_size": "280 × 280 px",
+                "desc": "Animated circle with five simultaneous motions: a rotating tick ring, counter-spinning accent arcs, an orbiting dot, a spinning inner ring, and a breathing centre glow.",
+                "preview": self._make_preview_orbit,
+                "mock_name": "OverlayMockTimerOrbit",
+            },
+            {
+                "name": "Surge",
+                "path": "/surge",
+                "obs_size": "1920 × 1080 px",
+                "desc": "Two mirrored wave systems surge toward the centre as the countdown runs down. Calm at the start, turbulent near zero — the waves telegraph urgency without you reading a number.",
+                "preview": self._make_preview_surge,
+                "mock_name": "OverlayMockTimerSurge",
+            },
         ]
 
         for i, ov in enumerate(overlays):
@@ -662,6 +680,65 @@ class TimerPage(QWidget):
         layout.addWidget(label)
         return f
 
+    def _make_preview_orbit(self) -> QFrame:
+        f = QFrame()
+        f.setObjectName("OverlayMockTimerOrbit")
+        f.setFixedHeight(130)
+        layout = QVBoxLayout(f)
+        layout.setContentsMargins(0, 8, 0, 8)
+        layout.setAlignment(Qt.AlignCenter)
+        try:
+            from PySide6.QtSvgWidgets import QSvgWidget
+            svg_data = _circle_preview_svg("7c3aed").encode()
+            svg = QSvgWidget()
+            svg.load(svg_data)
+            svg.setFixedSize(110, 110)
+            layout.addWidget(svg, 0, Qt.AlignCenter)
+        except ImportError:
+            lbl = QLabel("⟳  Orbit circle\n(280 × 280 OBS source)")
+            lbl.setObjectName("OverlayMockArtist")
+            lbl.setAlignment(Qt.AlignCenter)
+            layout.addWidget(lbl)
+        return f
+
+    def _make_preview_surge(self) -> QFrame:
+        f = QFrame()
+        f.setObjectName("OverlayMockTimerSurge")
+        f.setFixedHeight(90)
+        layout = QVBoxLayout(f)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        layout.setAlignment(Qt.AlignCenter)
+
+        # Upper wave strip
+        top_strip = QFrame()
+        top_strip.setObjectName("OverlayMockSurgeWave")
+        top_strip.setFixedHeight(28)
+        layout.addWidget(top_strip)
+
+        # Centre zone with time
+        centre = QFrame()
+        centre.setObjectName("OverlayMockCard")
+        centre_layout = QHBoxLayout(centre)
+        centre_layout.setContentsMargins(12, 4, 12, 4)
+        time_lbl = QLabel("05:00")
+        time_lbl.setObjectName("OverlayMockTitle")
+        time_lbl.setAlignment(Qt.AlignCenter)
+        label_lbl = QLabel("STARTING SOON")
+        label_lbl.setObjectName("OverlayMockEQLabel")
+        label_lbl.setAlignment(Qt.AlignCenter)
+        centre_layout.addWidget(time_lbl)
+        centre_layout.addWidget(label_lbl)
+        layout.addWidget(centre, 1)
+
+        # Lower wave strip
+        bot_strip = QFrame()
+        bot_strip.setObjectName("OverlayMockSurgeWave")
+        bot_strip.setFixedHeight(28)
+        layout.addWidget(bot_strip)
+
+        return f
+
     # ── Overlay URL helpers ───────────────────────────────────────────────────
 
     def _overlay_url(self, path: str) -> str:
@@ -695,12 +772,23 @@ class TimerPage(QWidget):
     def _on_bg_opacity_changed(self, value: int) -> None:
         self._ov_bg = value
         self._bg_opacity_label.setText(f"Background Opacity  ({value}%)")
+        self._push_theme()
         self._refresh_overlay_urls()
 
     def _on_overlay_param_changed(self) -> None:
         self._ov_accent = self._accent_edit.text().strip().lstrip("#")
         self._ov_text = self._text_edit.text().strip().lstrip("#")
+        self._push_theme()
         self._refresh_overlay_urls()
+
+    def _push_theme(self) -> None:
+        if self._overlay_server is None:
+            return
+        self._overlay_server.push_theme(
+            accent=self._ov_accent,
+            text=self._ov_text,
+            opacity=self._ov_bg,
+        )
 
     def _refresh_overlay_urls(self) -> None:
         for lbl in self._ov_url_labels:

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Timer — Orbit</title>
+  <link rel="stylesheet" href="/static/timer.css">
+  <style>
+    /* ── Orbit overlay ──────────────────────────────────────── */
+    :root {
+      --orbit-r: 96;          /* progress ring radius */
+      --orbit-circ: 603.19;   /* 2π × 96 */
+    }
+
+    .orbit-root {
+      width: 100%; height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .orbit-wrap {
+      position: relative;
+      width: 280px; height: 280px;
+    }
+    .orbit-svg {
+      position: absolute; inset: 0;
+      overflow: visible;
+      width: 100%; height: 100%;
+    }
+
+    /* SVG layer classes — use CSS variables via class so stroke picks them up */
+    .o-track       { fill: none; stroke: rgba(255,255,255,0.06); stroke-width: 10; }
+    .o-ring        { fill: none; stroke: var(--accent); stroke-width: 10; stroke-linecap: round;
+                     transition: stroke-dashoffset .12s linear; }
+    .o-inner-deco  { fill: none; stroke: rgba(var(--accent-rgb),0.10); stroke-width: 1.5; stroke-dasharray: 3 7; }
+    .o-counter-a   { fill: none; stroke: rgba(var(--accent-rgb),0.30); stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 28 574; }
+    .o-counter-b   { fill: none; stroke: rgba(var(--accent-rgb),0.15); stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 80 523; }
+    .o-dot         { fill: var(--accent); }
+    .o-dot-halo    { fill: none; stroke: var(--accent); stroke-width: 1; opacity: 0.35; }
+
+    /* Pulsing centre glow */
+    @keyframes center-breathe {
+      0%, 100% { r: 28px; opacity: 0.18; }
+      50%       { r: 38px; opacity: 0.08; }
+    }
+    .o-center-glow {
+      fill: var(--accent);
+      animation: center-breathe 3.2s ease-in-out infinite;
+    }
+
+    /* Finished flash */
+    @keyframes flash-ring {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+    .o-ring.finished { animation: flash-ring 0.8s ease-in-out infinite; }
+
+    /* Centre text overlay */
+    .orbit-center {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      pointer-events: none;
+    }
+    .orbit-time {
+      font-size: 2.4em; font-weight: 900;
+      font-variant-numeric: tabular-nums; letter-spacing: .03em;
+      color: var(--text-hi); line-height: 1;
+      text-shadow: 0 0 24px rgba(var(--accent-rgb), .55),
+                   0 0 6px  rgba(var(--accent-rgb), .30);
+    }
+    .orbit-label {
+      font-size: .65em; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .16em;
+      color: var(--accent); margin-top: 7px;
+    }
+    .orbit-status {
+      font-size: .52em; color: var(--text-lo);
+      letter-spacing: .1em; text-transform: uppercase; margin-top: 4px;
+    }
+  </style>
+</head>
+<body>
+<div class="orbit-root">
+  <div class="orbit-wrap">
+    <svg class="orbit-svg" id="orbit-svg" viewBox="0 0 280 280">
+      <defs>
+        <!-- Soft glow on progress ring head and dot -->
+        <filter id="glow-md" x="-60%" y="-60%" width="220%" height="220%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        <filter id="glow-lg" x="-80%" y="-80%" width="260%" height="260%">
+          <feGaussianBlur in="SourceGraphic" stdDeviation="7" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+
+      <!-- 1. Outer tick ring (rotates slowly clockwise via JS) -->
+      <g id="tick-ring"></g>
+
+      <!-- 2. Counter-rotating accent arcs (outer, rotates counter-clockwise) -->
+      <g id="counter-group">
+        <circle class="o-counter-a" cx="140" cy="140" r="116"/>
+        <circle class="o-counter-b" cx="140" cy="140" r="116" stroke-dashoffset="200"/>
+      </g>
+
+      <!-- 3. Track + progress ring -->
+      <circle class="o-track"  cx="140" cy="140" r="96"/>
+      <circle class="o-ring"   cx="140" cy="140" r="96" id="o-ring"
+              stroke-dasharray="603.19" stroke-dashoffset="0"
+              transform="rotate(-90 140 140)"
+              filter="url(#glow-md)"/>
+
+      <!-- 4. Inner decorative dashed ring (rotates clockwise, faster) -->
+      <circle class="o-inner-deco" id="inner-deco" cx="140" cy="140" r="74"/>
+
+      <!-- 5. Centre breathe glow -->
+      <circle class="o-center-glow" cx="140" cy="140" r="28"/>
+
+      <!-- 6. Orbiting dot (sits on the track, laps at constant speed) -->
+      <circle class="o-dot-halo" id="o-dot-halo" cx="236" cy="140" r="8" filter="url(#glow-lg)"/>
+      <circle class="o-dot"      id="o-dot"       cx="236" cy="140" r="5" filter="url(#glow-md)"/>
+    </svg>
+
+    <div class="orbit-center">
+      <div class="orbit-time"   id="orbit-time">00:00</div>
+      <div class="orbit-label"  id="orbit-label">Timer</div>
+      <div class="orbit-status" id="orbit-status">Ready</div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/timer.js"></script>
+<script>
+(function () {
+  var CX = 140, CY = 140;
+  var CIRC = 2 * Math.PI * 96;   // progress ring circumference
+
+  /* ── Build tick marks (rebuilt on theme change) ──────── */
+  var tickG  = document.getElementById('tick-ring');
+  var TICK_R = 130;
+  var _tickLines = [];
+
+  function _accentFromVar() {
+    return getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#7c3aed';
+  }
+
+  function buildTicks(accentHex) {
+    while (tickG.firstChild) tickG.removeChild(tickG.firstChild);
+    _tickLines = [];
+    for (var i = 0; i < 60; i++) {
+      var angle = (i / 60) * 2 * Math.PI - Math.PI / 2;
+      var major = (i % 5 === 0);
+      var len   = major ? 9 : 4;
+      var x1 = (CX + TICK_R * Math.cos(angle)).toFixed(2);
+      var y1 = (CY + TICK_R * Math.sin(angle)).toFixed(2);
+      var x2 = (CX + (TICK_R - len) * Math.cos(angle)).toFixed(2);
+      var y2 = (CY + (TICK_R - len) * Math.sin(angle)).toFixed(2);
+      var line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+      line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+      line.setAttribute('stroke', major ? (accentHex + '99') : 'rgba(255,255,255,0.13)');
+      line.setAttribute('stroke-width', major ? '2' : '1');
+      line.setAttribute('stroke-linecap', 'round');
+      tickG.appendChild(line);
+      _tickLines.push(line);
+    }
+  }
+  buildTicks(_accentFromVar());
+  window.__onThemeChange = function() { buildTicks(_accentFromVar()); };
+
+  /* ── Continuous animations ────────────────────────────── */
+  var tickAngle    =  0;   // outer tick ring   → +12°/s  (30 s/rev CW)
+  var counterAngle =  0;   // counter arcs      → -18°/s  (20 s/rev CCW)
+  var innerAngle   =  0;   // inner deco ring   → +30°/s  (12 s/rev CW)
+  var dotAngle     = -90;  // orbiting dot      → +42°/s  (8.6 s/rev CW)
+  var lastTs       = null;
+
+  function raf(ts) {
+    if (lastTs === null) lastTs = ts;
+    var dt = Math.min((ts - lastTs) / 1000, 0.1);
+    lastTs = ts;
+
+    tickAngle    = (tickAngle    + dt *  12) % 360;
+    counterAngle = (counterAngle - dt *  18 + 360) % 360;
+    innerAngle   = (innerAngle   + dt *  30) % 360;
+    dotAngle     = (dotAngle     + dt *  42) % 360;
+
+    document.getElementById('tick-ring').setAttribute(
+      'transform', 'rotate(' + tickAngle.toFixed(2) + ' ' + CX + ' ' + CY + ')');
+    document.getElementById('counter-group').setAttribute(
+      'transform', 'rotate(' + counterAngle.toFixed(2) + ' ' + CX + ' ' + CY + ')');
+    document.getElementById('inner-deco').setAttribute(
+      'transform', 'rotate(' + innerAngle.toFixed(2) + ' ' + CX + ' ' + CY + ')');
+
+    var rad = dotAngle * Math.PI / 180;
+    var dx  = (CX + 96 * Math.cos(rad)).toFixed(2);
+    var dy  = (CY + 96 * Math.sin(rad)).toFixed(2);
+    document.getElementById('o-dot').setAttribute('cx', dx);
+    document.getElementById('o-dot').setAttribute('cy', dy);
+    document.getElementById('o-dot-halo').setAttribute('cx', dx);
+    document.getElementById('o-dot-halo').setAttribute('cy', dy);
+
+    requestAnimationFrame(raf);
+  }
+  requestAnimationFrame(raf);
+
+  /* ── Timer state ──────────────────────────────────────── */
+  startTimer({
+    onRaf: function (pos, s) {
+      if (!s) return;
+      document.getElementById('orbit-time').textContent = fmtSecs(pos);
+      var offset = CIRC * (1 - (s.progress || 0));
+      document.getElementById('o-ring').setAttribute('stroke-dashoffset', offset.toFixed(2));
+    },
+    onUpdate: function (s) {
+      document.getElementById('orbit-label').textContent  = s.label  || 'Timer';
+      var st = s.status || '';
+      document.getElementById('orbit-status').textContent =
+        st.charAt(0).toUpperCase() + st.slice(1);
+
+      var ring = document.getElementById('o-ring');
+      if (s.status === 'finished') {
+        ring.classList.add('finished');
+      } else {
+        ring.classList.remove('finished');
+      }
+    }
+  });
+}());
+</script>
+</body>
+</html>

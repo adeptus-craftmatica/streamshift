@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Now Playing — Prism</title>
+  <link rel="stylesheet" href="/static/now_playing.css">
+  <style>
+    body.layout-prism {
+      display: flex; align-items: center; justify-content: center;
+      background: transparent;
+    }
+    .prism-root {
+      position: relative;
+      width: 520px; height: 88px;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+    }
+    /* Canvas sits behind everything */
+    #prism-canvas {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      display: block;
+    }
+    /* Frosted glass content layer */
+    .prism-glass {
+      position: absolute; inset: 0;
+      display: flex; align-items: center;
+      padding: 0 18px; gap: 14px;
+      background: rgba(5, 8, 14, 0.52);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    /* Left accent rule */
+    .prism-rule {
+      width: 3px; height: 48px; border-radius: 2px; flex-shrink: 0;
+      background: linear-gradient(180deg,
+        rgba(255,255,255,0.05) 0%,
+        var(--accent, #3f94bf) 40%,
+        rgba(255,255,255,0.05) 100%);
+      box-shadow: 0 0 8px var(--accent, #3f94bf);
+    }
+    /* Pulsing dot */
+    .prism-dot {
+      width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
+      background: var(--accent, #3f94bf);
+      box-shadow: 0 0 8px var(--accent, #3f94bf);
+      transition: background .3s, box-shadow .3s;
+    }
+    .prism-dot.paused { background: rgba(255,255,255,0.25); box-shadow: none; }
+    /* Track info */
+    .prism-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+    .prism-label {
+      font-size: 9px; font-weight: 700; letter-spacing: .18em;
+      text-transform: uppercase; color: var(--accent, #3f94bf);
+    }
+    .prism-title {
+      font-size: 14px; font-weight: 700;
+      color: var(--text-hi, #eef6ff);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .prism-artist {
+      font-size: 11px; color: var(--text-lo, rgba(238,246,255,0.55));
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    /* Right: time + mini progress arc */
+    .prism-right { flex-shrink: 0; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+    .prism-time {
+      font-size: 11px; font-family: monospace;
+      color: var(--text-lo, rgba(238,246,255,0.55));
+    }
+    /* Progress line along the bottom */
+    .prism-progress {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      height: 2px; background: rgba(255,255,255,0.08);
+    }
+    .prism-progress-fill {
+      height: 100%; width: 0%;
+      background: var(--accent, #3f94bf);
+      box-shadow: 0 0 6px var(--accent, #3f94bf);
+      transition: width .12s linear;
+    }
+  </style>
+</head>
+<body class="layout-prism">
+<div id="now-playing-root" class="prism-root">
+  <canvas id="prism-canvas"></canvas>
+
+  <div class="prism-glass">
+    <div class="prism-rule"></div>
+    <div class="prism-dot" id="now-dot"></div>
+    <div class="prism-info">
+      <span class="prism-label">Now Playing</span>
+      <span class="prism-title"  id="now-title">—</span>
+      <span class="prism-artist" id="now-artist"></span>
+    </div>
+    <div class="prism-right">
+      <span class="prism-time">
+        <span id="now-position">0:00</span>
+        <span style="opacity:.35"> / </span>
+        <span id="now-duration">0:00</span>
+      </span>
+    </div>
+  </div>
+
+  <div class="prism-progress">
+    <div class="prism-progress-fill" id="now-progress-fill"></div>
+  </div>
+</div>
+<script src="/static/now_playing.js"></script>
+<script>
+(function () {
+  var canvas = document.getElementById('prism-canvas');
+  var ctx    = canvas.getContext('2d');
+  var W = 520, H = 88;
+  canvas.width  = W;
+  canvas.height = H;
+
+  /* Each band: a slightly wavy horizontal stripe of colour */
+  var BAND_COUNT = 18;
+  var BAND_H     = H / BAND_COUNT;
+  var time       = 0;
+  var lastTs     = null;
+
+  function raf(ts) {
+    if (lastTs === null) lastTs = ts;
+    var dt = Math.min((ts - lastTs) / 1000, 0.1);
+    lastTs = ts;
+    time += dt * 0.22;   /* slow drift */
+
+    ctx.clearRect(0, 0, W, H);
+
+    for (var i = 0; i < BAND_COUNT; i++) {
+      /* hue cycles across bands and shifts slowly over time */
+      var hue = ((i / BAND_COUNT) * 360 + time * 40) % 360;
+
+      /* Each band has a gentle vertical sine offset */
+      var yBase  = i * BAND_H;
+      var yShift = Math.sin(time * 0.8 + i * 0.55) * (BAND_H * 0.55);
+      var y      = yBase + yShift;
+      var yNext  = y + BAND_H + Math.abs(yShift) * 0.4;
+
+      ctx.beginPath();
+      ctx.rect(0, y, W, yNext - y + 1);
+      ctx.fillStyle = 'hsla(' + hue.toFixed(1) + ', 72%, 52%, 0.55)';
+      ctx.fill();
+    }
+
+    /* Left‑to‑right brightness sweep */
+    var sweepX = ((time * 0.15) % 1.4 - 0.2) * W;
+    var sg = ctx.createLinearGradient(sweepX - 80, 0, sweepX + 80, 0);
+    sg.addColorStop(0,   'rgba(255,255,255,0)');
+    sg.addColorStop(0.5, 'rgba(255,255,255,0.12)');
+    sg.addColorStop(1,   'rgba(255,255,255,0)');
+    ctx.fillStyle = sg;
+    ctx.fillRect(0, 0, W, H);
+
+    requestAnimationFrame(raf);
+  }
+  requestAnimationFrame(raf);
+
+  startNowPlaying({
+    interval: 500,
+    onUpdate: function (s) {
+      var dot = document.getElementById('now-dot');
+      if (dot) dot.classList.toggle('paused', s.status !== 'playing');
+    },
+    onRaf: function (pos, latest) {
+      if (!latest || !latest.duration) return;
+      var pct = Math.min(1, Math.max(0, pos / latest.duration));
+      var fill = document.getElementById('now-progress-fill');
+      if (fill) fill.style.width = (pct * 100).toFixed(2) + '%';
+    },
+  });
+}());
+</script>
+</body>
+</html>

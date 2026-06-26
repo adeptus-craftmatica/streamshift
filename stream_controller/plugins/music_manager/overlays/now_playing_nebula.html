@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Now Playing — Nebula</title>
+  <link rel="stylesheet" href="/static/now_playing.css">
+  <style>
+    body.layout-nebula {
+      width: 100%; height: 100vh;
+      background: #06080e;
+      overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #nebula-canvas {
+      position: fixed; inset: 0;
+      width: 100%; height: 100%;
+      display: block;
+    }
+    /* Content floats above the canvas */
+    #now-playing-root {
+      position: relative; z-index: 2;
+      text-align: center;
+      display: flex; flex-direction: column; align-items: center; gap: 0;
+      pointer-events: none;
+    }
+    /* Status pill */
+    .neb-pill {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 5px 14px; border-radius: 999px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.10);
+      backdrop-filter: blur(6px);
+      margin-bottom: 22px;
+    }
+    .neb-pill-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent, #3f94bf);
+      box-shadow: 0 0 8px var(--accent, #3f94bf);
+    }
+    .neb-pill-dot.paused { background: rgba(255,255,255,0.3); box-shadow: none; }
+    .neb-pill-label {
+      font-size: 10px; font-weight: 700; letter-spacing: .22em;
+      text-transform: uppercase;
+      color: rgba(238,246,255,0.60);
+    }
+    /* Main title */
+    .neb-title {
+      font-size: clamp(2em, 5vw, 3.4em);
+      font-weight: 900; letter-spacing: .02em;
+      color: var(--text-hi, #eef6ff);
+      line-height: 1.1;
+      text-shadow:
+        0 0 60px rgba(var(--accent-rgb, 63,148,191), .55),
+        0 0 15px rgba(var(--accent-rgb, 63,148,191), .30),
+        0 2px 0   rgba(0,0,0,.5);
+      max-width: 70vw;
+      /* marquee handled by now_playing.js */
+    }
+    .neb-artist {
+      margin-top: 10px;
+      font-size: clamp(1em, 2vw, 1.4em);
+      font-weight: 500; letter-spacing: .06em;
+      color: var(--accent, #3f94bf);
+      max-width: 60vw;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    /* Progress row */
+    .neb-progress-row {
+      margin-top: 28px;
+      display: flex; align-items: center; gap: 12px;
+    }
+    .neb-time {
+      font-size: 12px; font-family: monospace;
+      color: rgba(238,246,255,0.45); width: 38px;
+    }
+    .neb-time.right { text-align: right; }
+    .neb-bar-wrap {
+      width: clamp(180px, 28vw, 340px);
+      height: 3px; border-radius: 2px;
+      background: rgba(255,255,255,0.10);
+      overflow: hidden;
+    }
+    .neb-bar-fill {
+      height: 100%; width: 0%;
+      background: var(--accent, #3f94bf);
+      box-shadow: 0 0 6px var(--accent, #3f94bf);
+      border-radius: 2px;
+      transition: width .12s linear;
+    }
+    /* Queue badge */
+    .neb-queue {
+      margin-top: 14px;
+      font-size: 10px; letter-spacing: .12em; text-transform: uppercase;
+      color: rgba(238,246,255,0.28);
+    }
+  </style>
+</head>
+<body class="layout-nebula">
+<canvas id="nebula-canvas"></canvas>
+
+<div id="now-playing-root">
+  <div class="neb-pill">
+    <div class="neb-pill-dot" id="now-dot"></div>
+    <span class="neb-pill-label">Now Playing</span>
+  </div>
+  <div class="neb-title"  id="now-title">—</div>
+  <div class="neb-artist" id="now-artist"></div>
+  <div class="neb-progress-row">
+    <span class="neb-time"       id="now-position">0:00</span>
+    <div  class="neb-bar-wrap">
+      <div class="neb-bar-fill"  id="now-progress-fill"></div>
+    </div>
+    <span class="neb-time right" id="now-duration">0:00</span>
+  </div>
+  <div class="neb-queue" id="neb-queue"></div>
+</div>
+
+<script src="/static/now_playing.js"></script>
+<script>
+(function () {
+  var canvas = document.getElementById('nebula-canvas');
+  var ctx    = canvas.getContext('2d');
+  var W, H;
+
+  function resize() {
+    W = canvas.width  = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  /* Read accent colour from CSS variable */
+  function parseAccent() {
+    var raw = getComputedStyle(document.documentElement)
+              .getPropertyValue('--accent').trim() || '#3f94bf';
+    raw = raw.replace('#', '');
+    if (raw.length === 3) raw = raw[0]+raw[0]+raw[1]+raw[1]+raw[2]+raw[2];
+    return [parseInt(raw.slice(0,2),16)||63, parseInt(raw.slice(2,4),16)||148, parseInt(raw.slice(4,6),16)||191];
+  }
+
+  /* Nebula blobs */
+  var BLOB_COUNT = 7;
+  var blobs = [];
+
+  function initBlobs(ac) {
+    blobs = [];
+    /* Two accent-hued blobs, rest are complementary / shifted hues */
+    var hueShifts = [0, 15, 180, 210, 120, 300, 60];
+    for (var i = 0; i < BLOB_COUNT; i++) {
+      var shift = hueShifts[i % hueShifts.length];
+      blobs.push({
+        x:  W * (0.15 + Math.random() * 0.7),
+        y:  H * (0.15 + Math.random() * 0.7),
+        vx: (Math.random() - 0.5) * 18,
+        vy: (Math.random() - 0.5) * 12,
+        r:  Math.min(W, H) * (0.22 + Math.random() * 0.22),
+        hShift: shift,
+        alpha: 0.22 + Math.random() * 0.20,
+        phase: Math.random() * Math.PI * 2,
+      });
+    }
+  }
+
+  var ac = parseAccent();
+  initBlobs(ac);
+
+  /* Derive a hue from RGB for colour shifting */
+  function rgbToHue(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    var max = Math.max(r, g, b), min = Math.min(r, g, b);
+    if (max === min) return 0;
+    var d = max - min, h;
+    if      (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+    else if (max === g) h = (b - r) / d + 2;
+    else                h = (r - g) / d + 4;
+    return (h / 6) * 360;
+  }
+  var baseHue = rgbToHue(ac[0], ac[1], ac[2]);
+
+  /* Re-read hue when theme changes */
+  window.__onThemeChange = function() {
+    ac = parseAccent();
+    baseHue = rgbToHue(ac[0], ac[1], ac[2]);
+  };
+
+  var time    = 0;
+  var lastTs  = null;
+
+  function raf(ts) {
+    if (lastTs === null) lastTs = ts;
+    var dt = Math.min((ts - lastTs) / 1000, 0.1);
+    lastTs = ts;
+    time += dt;
+
+    ctx.clearRect(0, 0, W, H);
+
+    /* Deep space base */
+    ctx.fillStyle = '#06080e';
+    ctx.fillRect(0, 0, W, H);
+
+    /* Star field — tiny fixed dots (seeded by index, no random each frame) */
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    for (var s = 0; s < 160; s++) {
+      var sx = ((s * 137.508 + 11) % W);
+      var sy = ((s * 97.301  + 7)  % H);
+      var sr = s % 5 === 0 ? 1.1 : 0.6;
+      ctx.beginPath();
+      ctx.arc(sx, sy, sr, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    /* Soft glow blobs */
+    ctx.globalCompositeOperation = 'screen';
+    blobs.forEach(function (b, i) {
+      /* Drift */
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      /* Soft bounce off edges */
+      if (b.x < -b.r * 0.5) b.vx =  Math.abs(b.vx);
+      if (b.x >  W + b.r * 0.5) b.vx = -Math.abs(b.vx);
+      if (b.y < -b.r * 0.5) b.vy =  Math.abs(b.vy);
+      if (b.y >  H + b.r * 0.5) b.vy = -Math.abs(b.vy);
+
+      /* Breathe */
+      var breathe = 1 + Math.sin(time * 0.4 + b.phase) * 0.12;
+      var r = b.r * breathe;
+
+      var hue = (baseHue + b.hShift) % 360;
+      var g = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, r);
+      g.addColorStop(0,   'hsla(' + hue + ',80%,65%,' + (b.alpha * 0.9)  + ')');
+      g.addColorStop(0.35,'hsla(' + hue + ',70%,50%,' + (b.alpha * 0.45) + ')');
+      g.addColorStop(1,   'hsla(' + hue + ',60%,30%,0)');
+      ctx.beginPath();
+      ctx.arc(b.x, b.y, r, 0, Math.PI * 2);
+      ctx.fillStyle = g;
+      ctx.fill();
+    });
+    ctx.globalCompositeOperation = 'source-over';
+
+    /* Vignette to keep edges dark */
+    var vig = ctx.createRadialGradient(W/2, H/2, Math.min(W,H)*0.25, W/2, H/2, Math.max(W,H)*0.75);
+    vig.addColorStop(0, 'rgba(6,8,14,0)');
+    vig.addColorStop(1, 'rgba(6,8,14,0.72)');
+    ctx.fillStyle = vig;
+    ctx.fillRect(0, 0, W, H);
+
+    requestAnimationFrame(raf);
+  }
+  requestAnimationFrame(raf);
+
+  startNowPlaying({
+    interval: 500,
+    onUpdate: function (s) {
+      var dot = document.getElementById('now-dot');
+      if (dot) dot.classList.toggle('paused', s.status !== 'playing');
+
+      var q = document.getElementById('neb-queue');
+      if (q && s.queue_total > 1) {
+        q.textContent = 'Track ' + (s.queue_index + 1) + ' of ' + s.queue_total;
+      } else if (q) {
+        q.textContent = '';
+      }
+    },
+    onRaf: function (pos, latest) {
+      if (!latest || !latest.duration) return;
+      var pct  = Math.min(1, Math.max(0, pos / latest.duration));
+      var fill = document.getElementById('now-progress-fill');
+      if (fill) fill.style.width = (pct * 100).toFixed(2) + '%';
+    },
+  });
+}());
+</script>
+</body>
+</html>

@@ -184,12 +184,14 @@ class MusicPage(QWidget):
         library: "LibraryService",
         playlists: "PlaylistService",
         overlay_base_url: str = "",
+        overlay_server=None,
     ) -> None:
         super().__init__()
         self._state = music_state
         self._library = library
         self._playlists = playlists
         self._overlay_base_url = overlay_base_url
+        self._overlay_server = overlay_server
         self._selected_playlist_id: str | None = None
         self._seeking = False
         # overlay customisation state
@@ -840,6 +842,27 @@ class MusicPage(QWidget):
                 "obs_size": "440 × 160 px",
                 "preview": self._make_vinyl_preview,
             },
+            {
+                "name": "Cassette",
+                "path": "/cassette",
+                "desc": "A retro cassette tape with two animated reels. The supply reel winds down and the take-up reel fills as the track plays — spoke rotation speed scales with reel size.",
+                "obs_size": "420 × 180 px",
+                "preview": self._make_cassette_preview,
+            },
+            {
+                "name": "Prism",
+                "path": "/prism",
+                "desc": "A wide frosted-glass banner over continuously flowing rainbow-hued bands. The colour spectrum drifts slowly so the background is always in motion.",
+                "obs_size": "520 × 88 px",
+                "preview": self._make_prism_preview,
+            },
+            {
+                "name": "Nebula",
+                "path": "/nebula",
+                "desc": "Full-scene ambient overlay with drifting colour blobs on a star field. The glowing nebula breathes slowly behind the track title and progress bar.",
+                "obs_size": "1920 × 1080 px",
+                "preview": self._make_nebula_preview,
+            },
         ]
 
         for i, ov in enumerate(overlays):
@@ -1265,6 +1288,121 @@ class MusicPage(QWidget):
 <text x="40" y="44" text-anchor="middle" font-size="4.5" fill="rgba(63,148,191,0.65)">Artist</text>
 </svg>'''
 
+    def _make_cassette_preview(self) -> QFrame:
+        f = QFrame()
+        f.setObjectName("OverlayMockCassette")
+        f.setFixedHeight(100)
+        layout = QVBoxLayout(f)
+        layout.setContentsMargins(12, 10, 12, 10)
+        layout.setSpacing(6)
+
+        # Label strip
+        label_row = QHBoxLayout()
+        label_row.setSpacing(6)
+        dot = QFrame()
+        dot.setObjectName("OverlayMockDot")
+        dot.setFixedSize(6, 6)
+        title_lbl = QLabel("Track Title")
+        title_lbl.setObjectName("OverlayMockTitle")
+        artist_lbl = QLabel("Artist Name")
+        artist_lbl.setObjectName("OverlayMockArtist")
+        label_row.addWidget(dot, 0, Qt.AlignVCenter)
+        label_row.addWidget(title_lbl, 1)
+        label_row.addWidget(artist_lbl, 0, Qt.AlignVCenter)
+        layout.addLayout(label_row)
+
+        # Reel row (two circles representing the reels)
+        reel_row = QHBoxLayout()
+        reel_row.setSpacing(0)
+        reel_row.addStretch(1)
+        for size in (32, 28):   # left reel fuller, right reel partially wound
+            reel = QFrame()
+            reel.setObjectName("OverlayMockCassetteReel")
+            reel.setFixedSize(size, size)
+            reel_row.addWidget(reel, 0, Qt.AlignVCenter)
+            reel_row.addStretch(1)
+        layout.addLayout(reel_row)
+
+        # Progress bar
+        bar_wrap = QFrame()
+        bar_wrap.setObjectName("OverlayMockBarWrap")
+        bar_wrap.setFixedHeight(3)
+        bar_inner = QHBoxLayout(bar_wrap)
+        bar_inner.setContentsMargins(0, 0, 0, 0)
+        bar_fill = QFrame(); bar_fill.setObjectName("OverlayMockBarFill")
+        bar_empty = QFrame(); bar_empty.setObjectName("OverlayMockBarEmpty")
+        bar_inner.addWidget(bar_fill, 2)
+        bar_inner.addWidget(bar_empty, 3)
+        layout.addWidget(bar_wrap)
+
+        return f
+
+    def _make_prism_preview(self) -> QFrame:
+        f = QFrame()
+        f.setObjectName("OverlayMockPrism")
+        f.setFixedHeight(70)
+        layout = QHBoxLayout(f)
+        layout.setContentsMargins(14, 0, 14, 0)
+        layout.setSpacing(12)
+
+        rule = QFrame()
+        rule.setObjectName("OverlayMockSep")
+        rule.setFixedSize(3, 44)
+        layout.addWidget(rule, 0, Qt.AlignVCenter)
+
+        dot = QFrame()
+        dot.setObjectName("OverlayMockDot")
+        dot.setFixedSize(7, 7)
+        layout.addWidget(dot, 0, Qt.AlignVCenter)
+
+        info = QVBoxLayout()
+        info.setSpacing(2)
+        now_lbl = QLabel("NOW PLAYING")
+        now_lbl.setObjectName("OverlayMockEQLabel")
+        title = QLabel("Track Title")
+        title.setObjectName("OverlayMockTitle")
+        artist = QLabel("Artist Name")
+        artist.setObjectName("OverlayMockArtist")
+        info.addWidget(now_lbl)
+        info.addWidget(title)
+        info.addWidget(artist)
+        layout.addLayout(info, 1)
+
+        return f
+
+    def _make_nebula_preview(self) -> QFrame:
+        f = QFrame()
+        f.setObjectName("OverlayMockNebula")
+        f.setFixedHeight(100)
+        layout = QVBoxLayout(f)
+        layout.setContentsMargins(0, 12, 0, 12)
+        layout.setAlignment(Qt.AlignCenter)
+        layout.setSpacing(4)
+
+        pill_row = QHBoxLayout()
+        pill_row.setSpacing(6)
+        pill_row.addStretch(1)
+        dot = QFrame()
+        dot.setObjectName("OverlayMockDot")
+        dot.setFixedSize(6, 6)
+        pill_lbl = QLabel("NOW PLAYING")
+        pill_lbl.setObjectName("OverlayMockEQLabel")
+        pill_row.addWidget(dot, 0, Qt.AlignVCenter)
+        pill_row.addWidget(pill_lbl)
+        pill_row.addStretch(1)
+        layout.addLayout(pill_row)
+
+        title = QLabel("Track Title")
+        title.setObjectName("OverlayMockTitle")
+        title.setAlignment(Qt.AlignCenter)
+        artist = QLabel("Artist Name")
+        artist.setObjectName("OverlayMockArtist")
+        artist.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title)
+        layout.addWidget(artist)
+
+        return f
+
     # ── Overlay URL helpers ───────────────────────────────────────────────────
 
     def _overlay_url(self, path: str) -> str:
@@ -1287,13 +1425,24 @@ class MusicPage(QWidget):
     def _on_bg_opacity_changed(self, value: int) -> None:
         self._ov_bg = value
         self._bg_opacity_label.setText(f"Background Opacity  ({value}%)")
+        self._push_theme()
         self._refresh_overlay_urls()
 
     def _on_overlay_param_changed(self) -> None:
         self._ov_accent = self._accent_edit.text().strip().lstrip("#")
         self._ov_text = self._text_edit.text().strip().lstrip("#")
         self._ov_hide_stopped = self._hide_stopped_cb.isChecked()
+        self._push_theme()
         self._refresh_overlay_urls()
+
+    def _push_theme(self) -> None:
+        if self._overlay_server is None:
+            return
+        self._overlay_server.push_theme(
+            accent=self._ov_accent,
+            text=self._ov_text,
+            opacity=self._ov_bg,
+        )
 
     def _refresh_overlay_urls(self) -> None:
         for lbl in self._ov_url_labels:

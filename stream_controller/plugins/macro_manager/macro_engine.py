@@ -280,6 +280,73 @@ class MacroEngine(QObject):
                     except Exception as exc:
                         logger.warning("chat.send bot %s: %s", bot_id, exc)
 
+        elif t == "chat.timed_sequence":
+            import random as _random
+            from stream_controller.plugins.macro_manager.chat_pool import ChatMessagePool
+
+            messages: list[str] = []
+
+            # Draw from the persistent pool first
+            if step.params.get("use_pool", True):
+                pool = ChatMessagePool.load()
+                count = int(step.params.get("pool_count", 3))
+                if pool:
+                    drawn = _random.sample(pool, min(count, len(pool)))
+                    messages.extend(drawn)
+
+            # Always include stream-specific messages
+            raw_extra = step.params.get("extra_messages", "")
+            extras = [m.strip() for m in raw_extra.splitlines() if m.strip()]
+            messages.extend(extras)
+
+            # Shuffle so pool and extras are interleaved randomly
+            _random.shuffle(messages)
+
+            duration = float(step.params.get("duration_seconds", 600.0))
+            spread = step.params.get("spread", "Random")
+            wait = step.params.get("wait_for_finish", True)
+
+            if not messages:
+                logger.warning("chat.timed_sequence: no messages in pool or step — skipping")
+            else:
+                # Calculate send times within [5s, duration-5s] so we don't
+                # fire immediately at the start or right as the window closes.
+                pad = min(5.0, duration / (len(messages) + 1))
+                window_start = pad
+                window_end = duration - pad
+
+                if spread == "Even":
+                    step_size = (window_end - window_start) / max(len(messages) - 1, 1) if len(messages) > 1 else 0
+                    offsets = sorted([window_start + i * step_size for i in range(len(messages))])
+                else:  # Random
+                    offsets = sorted(_random.uniform(window_start, window_end) for _ in messages)
+
+                def _send_sequence(msgs, times, bot_plugin) -> None:
+                    t0 = time.monotonic()
+                    for msg, send_at in zip(msgs, times):
+                        now = time.monotonic() - t0
+                        wait_sec = send_at - now
+                        if wait_sec > 0:
+                            time.sleep(wait_sec)
+                        if bot_plugin and hasattr(bot_plugin, "_engines"):
+                            for bot_id, engine in (bot_plugin._engines or {}).items():
+                                try:
+                                    engine.send_chat_message(msg)
+                                except Exception as exc:
+                                    logger.warning("chat.timed_sequence bot %s: %s", bot_id, exc)
+                        logger.info("chat.timed_sequence: sent %r at %.1fs", msg[:40], send_at)
+
+                bot_plugin = self._get_plugin("bot_manager")
+                if wait:
+                    _send_sequence(messages, offsets, bot_plugin)
+                else:
+                    threading.Thread(
+                        target=_send_sequence,
+                        args=(messages, offsets, bot_plugin),
+                        daemon=True,
+                        name="chat-timed-seq",
+                    ).start()
+
         elif t == "chat.raid":
             target = step.params.get("target", "").strip().lstrip("@")
             if target:

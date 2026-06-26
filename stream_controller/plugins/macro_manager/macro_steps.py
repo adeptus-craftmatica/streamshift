@@ -55,7 +55,7 @@ STEP_TYPES: list[tuple[str, str, str, list[dict]]] = [
         {"key": "duration_source",   "type": "choice",       "label": "Duration From",  "options": ["Manual", "Music Tracks"], "default": "Manual"},
         {"key": "duration_seconds",  "type": "number_float", "label": "Duration (sec)", "default": 300.0, "min": 1.0, "max": 86400.0},
         {"key": "overlay_style",     "type": "choice",       "label": "Overlay Style",
-         "options": ["None", "Card", "Minimal", "Circle", "Fullscreen", "Corner", "Split", "Neon"],
+         "options": ["None", "Card", "Minimal", "Circle", "Orbit", "Surge", "Fullscreen", "Corner", "Split", "Neon"],
          "default": "None"},
         {"key": "wait_for_finish",   "type": "bool",         "label": "Wait for completion", "default": False},
     ]),
@@ -72,6 +72,16 @@ STEP_TYPES: list[tuple[str, str, str, list[dict]]] = [
     # ── Chat ──────────────────────────────────────────────────────────────────
     ("Chat", "chat.send", "Send Chat Message", [
         {"key": "message", "type": "multiline_text", "label": "Message"},
+    ]),
+    ("Chat", "chat.timed_sequence", "Send Chat Messages Over Time", [
+        {"key": "use_pool",        "type": "bool",           "label": "Draw from Message Pool", "default": True},
+        {"key": "pool_count",      "type": "number",         "label": "How many from pool", "default": 3, "min": 1, "max": 50},
+        {"key": "extra_messages",  "type": "multiline_text", "label": "Stream-specific messages (always included, one per line)",
+         "placeholder": "Tonight we are painting Mechanicus Skitarii!\nSpecial giveaway happening this stream — stay tuned!"},
+        {"key": "duration_seconds","type": "number_float",   "label": "Spread over (seconds)", "default": 600.0, "min": 10.0, "max": 86400.0},
+        {"key": "spread",          "type": "choice",          "label": "Timing",
+         "options": ["Random", "Even"], "default": "Random"},
+        {"key": "wait_for_finish", "type": "bool",            "label": "Wait before next step", "default": True},
     ]),
     ("Chat", "chat.raid", "Raid Channel", [
         {"key": "target", "type": "raid_target_picker", "label": "Channel"},

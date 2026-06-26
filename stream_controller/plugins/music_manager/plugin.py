@@ -132,6 +132,7 @@ class MusicManagerPlugin:
             library=self._library,
             playlists=self._playlists,
             overlay_base_url=overlay_url,
+            overlay_server=self._overlay_server,
         )
         app_context.register_plugin_page(
             page_id="music_manager",
