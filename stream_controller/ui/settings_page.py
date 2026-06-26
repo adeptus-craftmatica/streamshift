@@ -41,6 +41,7 @@ class PluginSettingsPage(QWidget):
     reset_requested = Signal(str)
     hotkeys_save_requested = Signal(object)
     hotkeys_reset_requested = Signal(object)
+    _import_done = Signal(int, int, object)  # (files, secrets, hints) — private, for thread→UI hop
 
     def __init__(self) -> None:
         super().__init__()
@@ -52,6 +53,7 @@ class PluginSettingsPage(QWidget):
         self._hotkey_hints: dict[str, QLabel] = {}
         self._hotkey_conflicts: dict[str, QLabel] = {}
         self._hotkey_bindings: dict[str, HotkeyBinding] = {}
+        self._import_done.connect(self._show_import_checklist)
 
         root_layout = QVBoxLayout(self)
         root_layout.setContentsMargins(0, 0, 0, 0)
@@ -465,19 +467,82 @@ class PluginSettingsPage(QWidget):
 
         def _run() -> None:
             try:
-                from stream_controller.core.data_transfer import import_backup
+                from stream_controller.core.data_transfer import import_backup, get_connection_hints
                 files, secrets = import_backup(src_path, passphrase)
+                hints = get_connection_hints()
                 self._show_backup_status(
-                    f"Import complete — {files} config files and {secrets} credential(s) restored. "
-                    "Restart StreamShift to apply all changes.",
+                    f"Import complete — {files} files and {secrets} credential(s) restored.",
                     success=True,
                 )
+                self._import_done.emit(files, secrets, hints)
             except ValueError as exc:
                 self._show_backup_status(f"Import failed: {exc}", success=False)
             except Exception as exc:
                 self._show_backup_status(f"Import error: {exc}", success=False)
 
         threading.Thread(target=_run, daemon=True, name="backup-import").start()
+
+    def _show_import_checklist(self, files: int, secrets: int, hints: list) -> None:
+        """Show a post-import checklist dialog explaining what to re-verify on this machine."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Import Complete — What to Check Next")
+        dlg.setMinimumWidth(520)
+        lay = QVBoxLayout(dlg)
+        lay.setSpacing(12)
+        lay.setContentsMargins(20, 20, 20, 20)
+
+        summary = QLabel(
+            f"<b>{files} config files</b> and <b>{secrets} credential(s)</b> were restored.<br><br>"
+            "StreamShift must be <b>restarted</b> to apply all changes. After restarting, "
+            "check each connection below — credentials were restored from the backup but "
+            "some services may need re-authorisation on this machine."
+        )
+        summary.setWordWrap(True)
+        summary.setStyleSheet("font-size:13px;")
+        lay.addWidget(summary)
+
+        sep = QFrame()
+        sep.setFrameShape(QFrame.HLine)
+        sep.setStyleSheet("color:#1e293b;")
+        lay.addWidget(sep)
+
+        for hint in (hints or []):
+            row = QHBoxLayout()
+            icon = QLabel("✓")
+            icon.setStyleSheet("color:#22c55e; font-size:14px; font-weight:700;")
+            icon.setFixedWidth(20)
+            row.addWidget(icon)
+            col = QVBoxLayout()
+            col.setSpacing(1)
+            name_lbl = QLabel(f"<b>{hint.get('label', '')}</b>")
+            name_lbl.setStyleSheet("font-size:12px;")
+            detail_lbl = QLabel(hint.get("detail", ""))
+            detail_lbl.setStyleSheet("font-size:11px; color:#64748b;")
+            detail_lbl.setWordWrap(True)
+            col.addWidget(name_lbl)
+            col.addWidget(detail_lbl)
+            row.addLayout(col)
+            lay.addLayout(row)
+
+        sep2 = QFrame()
+        sep2.setFrameShape(QFrame.HLine)
+        sep2.setStyleSheet("color:#1e293b;")
+        lay.addWidget(sep2)
+
+        note = QLabel(
+            "💡 <b>Tip:</b> If a Twitch OAuth token doesn't work after restart, "
+            "use the Twitch Setup button in that section to generate a new one — "
+            "tokens are tied to your account, not your machine."
+        )
+        note.setWordWrap(True)
+        note.setStyleSheet("font-size:11px; color:#94a3b8;")
+        lay.addWidget(note)
+
+        btns = QDialogButtonBox(QDialogButtonBox.Ok)
+        btns.accepted.connect(dlg.accept)
+        lay.addWidget(btns)
+
+        dlg.exec()
 
     def _build_plugin_card(
         self,

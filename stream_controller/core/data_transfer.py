@@ -2,9 +2,12 @@
 Export / import all StreamShift user data.
 
 Export produces a .ssbackup file (a ZIP) containing:
-  manifest.json   — format version + timestamp
+  manifest.json   — format version + timestamp + inventory of what was captured
   configs/        — JSON and DB files from ~/.streamshift and ~/.stream_controller
   secrets.enc     — AES-256-GCM encrypted JSON of every keyring secret
+
+SQLite (.db) files are exported via SQLite's own backup API into a temp file so
+the snapshot is always consistent, even while the app is running.
 
 The passphrase is stretched with PBKDF2-HMAC-SHA256 (600 000 iterations) into a
 256-bit key.  Each export gets a fresh random salt + nonce so encrypting twice
@@ -12,13 +15,15 @@ with the same passphrase produces different bytes.
 
 Import unpacks the ZIP, restores config files, decrypts secrets.enc, and writes
 each secret back into the system keychain (macOS Keychain / Windows Credential
-Locker / Linux Secret Service).
+Locker / Linux Secret Service).  A restart is required to apply everything.
 """
 from __future__ import annotations
 
+import io
 import json
 import logging
 import os
+import tempfile
 import zipfile
 from pathlib import Path
 
@@ -37,8 +42,19 @@ _STATIC_SECRETS: dict[str, set[str]] = {
 
 _BOT_SENSITIVE = {"twitch_oauth_token", "discord_bot_token", "twitch_broadcaster_token"}
 
-_BACKUP_VERSION = "1"
+_BACKUP_VERSION = "2"  # bumped: added safe SQLite export + connection hints
+_COMPAT_VERSIONS = {"1", "2"}  # versions this build can import
 _MAX_FILE_BYTES = 50 * 1024 * 1024  # skip files larger than 50 MB
+
+# Human-readable labels shown in the post-import checklist
+_CONNECTION_HINTS: list[dict] = [
+    {"label": "Twitch (main account)",   "detail": "Open Stream Info → Twitch Setup and re-authorise if the token does not work."},
+    {"label": "Twitch Bot",              "detail": "Open Bot Manager → each bot → re-enter the OAuth token if chat commands stop working."},
+    {"label": "OBS WebSocket",           "detail": "Open Scene Manager → Settings. The host/port/password were restored — just click Connect."},
+    {"label": "Discord Bot",             "detail": "Open Bot Manager → General tab → verify the Discord Bot Token is still valid."},
+    {"label": "Bluesky",                 "detail": "Open Social Manager → verify the App Password if posting fails."},
+    {"label": "Stream Stats",            "detail": "Open Stream Stats → re-authorise Twitch if follower/sub counts stop updating."},
+]
 
 
 # ── Encryption ──────────────────────────────────────────────────────────────
@@ -117,31 +133,82 @@ def _restore_secrets(secrets: dict[str, str]) -> None:
         _kr_store(ns, field, value)
 
 
+# ── SQLite safe copy ─────────────────────────────────────────────────────────
+
+def _sqlite_backup_bytes(src_path: Path) -> bytes | None:
+    """
+    Use SQLite's built-in online backup API to produce a consistent snapshot of
+    *src_path* even while another connection has the database open.  Returns the
+    raw bytes of the snapshot, or None on error.
+    """
+    import sqlite3
+    try:
+        buf = io.BytesIO()
+        src_conn = sqlite3.connect(str(src_path))
+        dst_conn = sqlite3.connect(":memory:")
+        src_conn.backup(dst_conn)
+        src_conn.close()
+        # Serialize the in-memory copy to raw bytes via a temp file
+        with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tf:
+            tmp_path = Path(tf.name)
+        try:
+            dst_conn.backup(sqlite3.connect(str(tmp_path)))
+            dst_conn.close()
+            return tmp_path.read_bytes()
+        finally:
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
+    except Exception as exc:
+        logger.warning("sqlite_backup_bytes(%s): %s", src_path, exc)
+        return None
+
+
 # ── File collection ──────────────────────────────────────────────────────────
 
-def _collect_config_files() -> list[tuple[Path, str]]:
-    """
-    Return (absolute_path, archive_path) pairs for every config file to include.
-    Files larger than 50 MB are skipped.
-    """
-    results: list[tuple[Path, str]] = []
+# Files/directories to skip even if they live under ~/.streamshift
+_SKIP_SUFFIXES = {".log", ".tmp", ".lock", ".pyc"}
+_SKIP_DIRS = {"__pycache__", ".DS_Store"}
 
-    if _STREAMSHIFT_DIR.exists():
-        for fpath in sorted(_STREAMSHIFT_DIR.rglob("*")):
+def _collect_config_files() -> list[tuple[Path, str, bytes | None]]:
+    """
+    Return (absolute_path, archive_path, override_bytes) triples.
+    - override_bytes is non-None only for SQLite files — it's the safe backup snapshot.
+    - Files larger than 50 MB are skipped.
+    """
+    results: list[tuple[Path, str, bytes | None]] = []
+
+    def _add_dir(base: Path, prefix: str) -> None:
+        if not base.exists():
+            return
+        for fpath in sorted(base.rglob("*")):
             if not fpath.is_file():
                 continue
+            if fpath.suffix.lower() in _SKIP_SUFFIXES:
+                continue
+            if any(part in _SKIP_DIRS for part in fpath.parts):
+                continue
             try:
-                if fpath.stat().st_size > _MAX_FILE_BYTES:
+                size = fpath.stat().st_size
+                if size > _MAX_FILE_BYTES:
                     logger.info("Skipping large file from backup: %s", fpath)
                     continue
             except OSError:
                 continue
-            rel = fpath.relative_to(_STREAMSHIFT_DIR)
-            results.append((fpath, f"configs/streamshift/{rel}"))
+            rel = fpath.relative_to(base)
+            arc = f"{prefix}/{rel}"
+            if fpath.suffix.lower() == ".db":
+                snap = _sqlite_backup_bytes(fpath)
+                results.append((fpath, arc, snap))
+            else:
+                results.append((fpath, arc, None))
+
+    _add_dir(_STREAMSHIFT_DIR, "configs/streamshift")
 
     sc_settings = _STREAM_CONTROLLER_DIR / "settings.json"
     if sc_settings.exists():
-        results.append((sc_settings, "configs/stream_controller/settings.json"))
+        results.append((sc_settings, "configs/stream_controller/settings.json", None))
 
     return results
 
@@ -152,6 +219,7 @@ def export_backup(dest_path: Path, passphrase: str) -> tuple[int, int]:
     """
     Write a .ssbackup archive to *dest_path*.
     Returns (file_count, secret_count).
+    SQLite databases are safely snapshotted via the backup API.
     Raises on any fatal error.
     """
     config_files = _collect_config_files()
@@ -161,6 +229,7 @@ def export_backup(dest_path: Path, passphrase: str) -> tuple[int, int]:
         "version": _BACKUP_VERSION,
         "file_count": len(config_files),
         "has_secrets": bool(secrets),
+        "connection_hints": _CONNECTION_HINTS,
     }
 
     secrets_enc = _encrypt(
@@ -171,9 +240,13 @@ def export_backup(dest_path: Path, passphrase: str) -> tuple[int, int]:
     with zipfile.ZipFile(dest_path, "w", compression=zipfile.ZIP_DEFLATED) as zf:
         zf.writestr("manifest.json", json.dumps(manifest, indent=2))
         zf.writestr("secrets.enc", secrets_enc)
-        for fpath, arc_path in config_files:
+        for fpath, arc_path, snap_bytes in config_files:
             try:
-                zf.write(fpath, arc_path)
+                if snap_bytes is not None:
+                    # SQLite backup snapshot — use the pre-captured bytes
+                    zf.writestr(arc_path, snap_bytes)
+                else:
+                    zf.write(fpath, arc_path)
             except Exception as exc:
                 logger.warning("export: skipping %s: %s", fpath, exc)
 
@@ -194,9 +267,10 @@ def import_backup(src_path: Path, passphrase: str) -> tuple[int, int]:
             raise ValueError("This file does not look like a StreamShift backup.")
 
         manifest = json.loads(zf.read("manifest.json").decode("utf-8"))
-        if manifest.get("version") != _BACKUP_VERSION:
+        version = manifest.get("version")
+        if version not in _COMPAT_VERSIONS:
             raise ValueError(
-                f"Unsupported backup version '{manifest.get('version')}'. "
+                f"Unsupported backup version '{version}'. "
                 "Update StreamShift to the latest version and try again."
             )
 
@@ -228,3 +302,8 @@ def import_backup(src_path: Path, passphrase: str) -> tuple[int, int]:
 
     logger.info("Import complete: %d files, %d secrets restored", restored_files, len(secrets))
     return restored_files, len(secrets)
+
+
+def get_connection_hints() -> list[dict]:
+    """Return the list of connection areas a user should verify after importing."""
+    return list(_CONNECTION_HINTS)
