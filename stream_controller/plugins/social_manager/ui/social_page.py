@@ -250,7 +250,7 @@ class SocialPage(QWidget):
         form.addRow("", pw_hint)
 
         btn_row = QHBoxLayout()
-        save_btn = QPushButton("Save & Connect")
+        save_btn = QPushButton("Save && Connect")
         save_btn.setObjectName("PrimaryButton")
         save_btn.clicked.connect(self._save_and_connect_bluesky)
         disconnect_btn = QPushButton("Disconnect")

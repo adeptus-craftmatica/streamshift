@@ -152,6 +152,10 @@ class QuickConnectPage(QWidget):
         self._pngtuber_card.on_connect(self._connect_pngtuber)
         self._pngtuber_card.on_disconnect(self._disconnect_pngtuber)
 
+        self._social_card = self._add_card("📣", "Bluesky")
+        self._social_card.on_connect(self._connect_social)
+        self._social_card.on_disconnect(self._disconnect_social)
+
         # Poll status every 2 seconds
         self._timer = QTimer(self)
         self._timer.setInterval(2000)
@@ -429,6 +433,42 @@ class QuickConnectPage(QWidget):
 
     # ── Aggregate ─────────────────────────────────────────────────────────────
 
+    # ── Social ────────────────────────────────────────────────────────────────
+
+    def _connect_social(self) -> None:
+        plugin = self._get_plugin("social_manager")
+        if not plugin:
+            return
+        repo = getattr(plugin, "_repo", None)
+        client = getattr(plugin, "_client", None)
+        if not repo or not client:
+            return
+        handle = repo.get("bluesky_handle") or ""
+        pw = repo.get_secret("bluesky_app_password")
+        if handle and pw:
+            import threading
+            threading.Thread(
+                target=lambda: client.connect(handle, pw), daemon=True
+            ).start()
+
+    def _disconnect_social(self) -> None:
+        plugin = self._get_plugin("social_manager")
+        if plugin:
+            client = getattr(plugin, "_client", None)
+            if client:
+                client.disconnect()
+
+    def _social_status(self) -> tuple[bool, str]:
+        plugin = self._get_plugin("social_manager")
+        if not plugin:
+            return False, "Plugin not loaded"
+        client = getattr(plugin, "_client", None)
+        if client and client.connected:
+            return True, f"@{client.handle}"
+        return False, "Not connected"
+
+    # ── Aggregate ─────────────────────────────────────────────────────────────
+
     def _connect_all(self) -> None:
         self._connect_bots()
         self._connect_chat()
@@ -436,6 +476,7 @@ class QuickConnectPage(QWidget):
         self._connect_info()
         self._connect_obs()
         self._connect_pngtuber()
+        self._connect_social()
         QTimer.singleShot(1000, self._refresh_status)
 
     def _disconnect_all(self) -> None:
@@ -445,6 +486,7 @@ class QuickConnectPage(QWidget):
         self._disconnect_info()
         self._disconnect_obs()
         self._disconnect_pngtuber()
+        self._disconnect_social()
         QTimer.singleShot(500, self._refresh_status)
 
     def _refresh_status(self) -> None:
@@ -468,3 +510,6 @@ class QuickConnectPage(QWidget):
 
         png_conn, png_lbl = self._pngtuber_status()
         self._pngtuber_card.set_status(png_conn, label=png_lbl)
+
+        social_conn, social_lbl = self._social_status()
+        self._social_card.set_status(social_conn, label=social_lbl)

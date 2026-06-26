@@ -85,6 +85,20 @@ STEP_TYPES: list[tuple[str, str, str, list[dict]]] = [
         {"key": "platforms", "type": "choice", "label": "Platform",
          "options": ["Bluesky"], "default": "Bluesky"},
     ]),
+    ("Social", "social.post_text", "Post Custom Text to Social", [
+        {"key": "text", "type": "multiline_text", "label": "Message",
+         "placeholder": "Going live now! Come hang out →  {url}"},
+        {"key": "platforms", "type": "choice", "label": "Platform",
+         "options": ["Bluesky"], "default": "Bluesky"},
+    ]),
+    ("Social", "social.connect", "Connect Social Media", [
+        {"key": "platforms", "type": "choice", "label": "Platform",
+         "options": ["Bluesky"], "default": "Bluesky"},
+    ]),
+    ("Social", "social.disconnect", "Disconnect Social Media", [
+        {"key": "platforms", "type": "choice", "label": "Platform",
+         "options": ["Bluesky"], "default": "Bluesky"},
+    ]),
 
     # ── Flow Control ──────────────────────────────────────────────────────────
     ("Flow Control", "delay",  "Wait", [

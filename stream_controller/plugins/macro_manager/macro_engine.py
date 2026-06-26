@@ -301,6 +301,33 @@ class MacroEngine(QObject):
                     if not ok:
                         logger.warning("social.post_template: %s", msg)
 
+        elif t == "social.post_text":
+            text = step.params.get("text", "").strip()
+            if text:
+                plugin = self._get_plugin("social_manager")
+                if plugin:
+                    text = plugin.resolve_template(text)
+                    client = getattr(plugin, "_client", None)
+                    if client and client.connected:
+                        try:
+                            client.post_text(text)
+                        except Exception as exc:
+                            logger.warning("social.post_text: %s", exc)
+                    else:
+                        logger.warning("social.post_text: Bluesky not connected")
+
+        elif t == "social.connect":
+            plugin = self._get_plugin("social_manager")
+            if plugin:
+                plugin._try_auto_connect()
+
+        elif t == "social.disconnect":
+            plugin = self._get_plugin("social_manager")
+            if plugin:
+                client = getattr(plugin, "_client", None)
+                if client:
+                    client.disconnect()
+
         elif t == "delay":
             time.sleep(step.params.get("delay_ms", 500) / 1000)
 
