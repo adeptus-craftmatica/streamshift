@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Stream Stats</title>
+<link rel="stylesheet" href="/static/stats.css">
+<style>body{display:flex;align-items:flex-start;justify-content:flex-start;padding:16px;min-height:100vh}</style>
+</head>
+<body>
+<div class="card" id="root">
+  <div class="card-title">Stream Stats</div>
+  <div class="stat-row"><span class="stat-label">Total Followers</span><span class="stat-value green" id="total">–</span></div>
+  <div class="stat-row"><span class="stat-label">Followers Gained</span><span class="stat-value accent" id="gained">–</span></div>
+  <div class="divider"></div>
+  <div class="stat-row"><span class="stat-label">Bits Donated</span><span class="stat-value gold" id="bits">–</span></div>
+  <div class="stat-row"><span class="stat-label">Subscriptions</span><span class="stat-value pink" id="subs">–</span></div>
+  <div class="stat-row"><span class="stat-label">Gifted Subs</span><span class="stat-value blue" id="gifted">–</span></div>
+  <div class="divider"></div>
+  <div class="latest">Latest follower: <span id="latest">—</span></div>
+</div>
+<script src="/static/stats.js"></script>
+<script>
+window.onStatsUpdate = function(s){
+  document.getElementById('total').textContent  = statsFmt(s.total_followers);
+  document.getElementById('gained').textContent = '+' + statsFmt(s.followers_gained);
+  document.getElementById('bits').textContent   = statsFmt(s.bits_donated);
+  document.getElementById('subs').textContent   = statsFmt(s.new_subs);
+  document.getElementById('gifted').textContent = statsFmt(s.gifted_subs);
+  document.getElementById('latest').textContent = s.latest_follower || '—';
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Timer — Surge</title>
+  <link rel="stylesheet" href="/static/timer.css">
+  <style>
+    .surge-root {
+      width: 100%; height: 100vh;
+      position: relative;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden;
+    }
+    #surge-canvas {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+    }
+    /* Horizontal separator that brightens as the gap narrows */
+    .surge-sep {
+      position: absolute;
+      left: 0; right: 0; top: 50%;
+      height: 1px;
+      background: linear-gradient(90deg,
+        transparent 0%, rgba(var(--accent-rgb),.9) 30%, rgba(var(--accent-rgb),1) 50%,
+        rgba(var(--accent-rgb),.9) 70%, transparent 100%);
+      box-shadow: 0 0 12px 2px rgba(var(--accent-rgb),.45);
+      transform: translateY(-50%);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .3s ease;
+    }
+    /* Central content */
+    .surge-content {
+      position: relative; z-index: 3;
+      text-align: center; pointer-events: none;
+    }
+    .surge-time {
+      font-size: clamp(2.6em, 11vw, 5.5em);
+      font-weight: 900;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: .04em;
+      color: var(--text-hi);
+      line-height: 1;
+      text-shadow:
+        0 0 50px rgba(var(--accent-rgb), .75),
+        0 0 14px rgba(var(--accent-rgb), .50),
+        0  2px 0   rgba(0,0,0,.55);
+    }
+    .surge-label {
+      font-size: .65em; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .20em;
+      color: var(--accent); margin-top: 9px;
+    }
+    .surge-status {
+      font-size: .50em; color: var(--text-lo);
+      letter-spacing: .10em; text-transform: uppercase;
+      margin-top: 5px;
+    }
+  </style>
+</head>
+<body>
+<div class="surge-root">
+  <canvas id="surge-canvas"></canvas>
+  <div class="surge-sep" id="surge-sep"></div>
+  <div class="surge-content">
+    <div class="surge-time"   id="surge-time">00:00</div>
+    <div class="surge-label"  id="surge-label">Timer</div>
+    <div class="surge-status" id="surge-status">Ready</div>
+  </div>
+</div>
+
+<script src="/static/timer.js"></script>
+<script>
+(function () {
+  var canvas = document.getElementById('surge-canvas');
+  var ctx    = canvas.getContext('2d');
+  var W = 1, H = 1;
+
+  function resize() {
+    W = canvas.width  = canvas.offsetWidth  || window.innerWidth;
+    H = canvas.height = canvas.offsetHeight || window.innerHeight;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  /* ── Live accent colour read from CSS var (updated by timer.js on theme change) ── */
+  var _accentR = 124, _accentG = 58, _accentB = 237;
+  function _syncAccent() {
+    var raw = getComputedStyle(document.documentElement).getPropertyValue('--accent-rgb').trim();
+    if (!raw) return;
+    var parts = raw.split(',');
+    if (parts.length === 3) {
+      _accentR = parseInt(parts[0]) || 124;
+      _accentG = parseInt(parts[1]) || 58;
+      _accentB = parseInt(parts[2]) || 237;
+    }
+  }
+  _syncAccent();
+  window.__onThemeChange = function() { _syncAccent(); };
+
+  function _rgba(a) { return 'rgba('+_accentR+','+_accentG+','+_accentB+','+a+')'; }
+
+  /* ── Wave layers: each set has three overlapping sine waves ─── */
+  var LAYERS = [
+    { freq: 1.70, pOff: 0,             aMul: 1.00, alpha: 0.60 },
+    { freq: 2.95, pOff: Math.PI * 0.55, aMul: 0.62, alpha: 0.30 },
+    { freq: 1.05, pOff: Math.PI * 1.25, aMul: 1.38, alpha: 0.13 },
+  ];
+
+  /* ── Particles that ride the wave crests ─────────────────────── */
+  var particles = (function () {
+    var out = [];
+    for (var i = 0; i < 22; i++) {
+      out.push({
+        xn:      Math.random(),
+        side:    i < 11 ? -1 : 1,
+        layer:   i % 3,
+        pOff:    Math.random() * Math.PI * 2,
+        r:       1.0 + Math.random() * 1.8,
+        opacity: 0.35 + Math.random() * 0.50,
+      });
+    }
+    return out;
+  }());
+
+  var progress = 1.0;
+  var phase    = 0.0;
+  var lastTs   = null;
+
+  /* sine displacement for a single layer */
+  function waveDisp(x, amp, layer, ph) {
+    return Math.sin((x / W) * layer.freq * Math.PI * 2 + ph + layer.pOff) * amp * layer.aMul;
+  }
+
+  function drawSide(baselineY, side, amp, ph) {
+    /* side: -1 = upper (waves grow upward), +1 = lower (downward) */
+    LAYERS.forEach(function (l) {
+      ctx.beginPath();
+      ctx.moveTo(0, baselineY);
+      for (var x = 0; x <= W; x += 3) {
+        var d = Math.abs(waveDisp(x, amp, l, ph));
+        ctx.lineTo(x, baselineY - side * d);
+      }
+      /* close toward the near edge of the screen */
+      ctx.lineTo(W, side < 0 ? 0 : H);
+      ctx.lineTo(0, side < 0 ? 0 : H);
+      ctx.closePath();
+
+      var gradEnd = baselineY - side * (amp * l.aMul * 1.4 + H * 0.35);
+      var g = ctx.createLinearGradient(0, baselineY, 0, gradEnd);
+      g.addColorStop(0,   _rgba(l.alpha));
+      g.addColorStop(0.45,_rgba(l.alpha * 0.50));
+      g.addColorStop(1,   _rgba(0));
+      ctx.fillStyle = g;
+      ctx.fill();
+    });
+
+    /* bright surface line — primary wave only */
+    ctx.beginPath();
+    var first = true;
+    for (var x = 0; x <= W; x += 3) {
+      var d = Math.abs(waveDisp(x, amp, LAYERS[0], ph));
+      var y = baselineY - side * d;
+      if (first) { ctx.moveTo(x, y); first = false; }
+      else ctx.lineTo(x, y);
+    }
+    ctx.strokeStyle = _rgba(0.85);
+    ctx.lineWidth   = 1.8;
+    ctx.shadowColor = _rgba(0.70);
+    ctx.shadowBlur  = 7;
+    ctx.stroke();
+    ctx.shadowBlur  = 0;
+  }
+
+  function drawParticles(gapH, amp, ph) {
+    particles.forEach(function (p) {
+      var base = H / 2 - p.side * gapH;
+      var l    = LAYERS[p.layer];
+      var x    = p.xn * W;
+      var d    = Math.abs(waveDisp(x, amp, l, ph));
+      var y    = base - p.side * (d + 1.5);
+
+      ctx.beginPath();
+      ctx.arc(x, y, p.r, 0, Math.PI * 2);
+      ctx.fillStyle   = _rgba(p.opacity);
+      ctx.shadowColor = _rgba(0.95);
+      ctx.shadowBlur  = p.r * 4;
+      ctx.fill();
+      ctx.shadowBlur  = 0;
+    });
+  }
+
+  function raf(ts) {
+    if (lastTs === null) lastTs = ts;
+    var dt = Math.min((ts - lastTs) / 1000, 0.10);
+    lastTs = ts;
+
+    var tension = 1 - progress;                    /* 0 → calm, 1 → urgent */
+    phase += dt * (0.42 + tension * 1.55);
+
+    /* gap half-height: wide at start, narrows to almost nothing */
+    var gapH = H * (0.255 * progress + 0.042);    /* 29.7% → 4.2% of H   */
+    /* amplitude: small and gentle → tall and turbulent */
+    var amp  = 18 + tension * 72;                  /* 18px → 90px          */
+
+    ctx.clearRect(0, 0, W, H);
+
+    /* upper: baseline at (H/2 − gapH), waves extend upward */
+    drawSide(H / 2 - gapH, -1, amp, phase);
+    /* lower: baseline at (H/2 + gapH), waves extend downward, offset phase */
+    drawSide(H / 2 + gapH,  1, amp, phase + Math.PI * 0.72);
+
+    drawParticles(gapH, amp, phase);
+
+    /* brighten separator as gap shrinks */
+    document.getElementById('surge-sep').style.opacity = (0.12 + tension * 0.78).toFixed(3);
+
+    requestAnimationFrame(raf);
+  }
+  requestAnimationFrame(raf);
+
+  /* ── Timer state ──────────────────────────────────────────── */
+  startTimer({
+    onRaf: function (pos, s) {
+      if (!s) return;
+      progress = Math.max(0, s.progress || 0);
+      document.getElementById('surge-time').textContent = fmtSecs(pos);
+    },
+    onUpdate: function (s) {
+      document.getElementById('surge-label').textContent  = s.label || 'Timer';
+      var st = s.status || '';
+      document.getElementById('surge-status').textContent =
+        st.charAt(0).toUpperCase() + st.slice(1);
+    },
+  });
+}());
+</script>
+</body>
+</html>

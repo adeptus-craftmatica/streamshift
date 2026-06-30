@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Timer — Fullscreen</title>
+  <link rel="stylesheet" href="/static/timer.css">
+</head>
+<body>
+<div class="fs-root">
+  <div class="fs-label"   id="fs-label">Timer</div>
+  <div class="fs-time"    id="fs-time">00:00</div>
+  <div class="fs-track">
+    <div class="fs-fill"  id="fs-fill" style="width:0%"></div>
+  </div>
+  <div class="fs-status"  id="fs-status">Ready</div>
+  <div class="fs-end"     id="fs-end"   style="display:none"></div>
+</div>
+<script src="/static/timer.js"></script>
+<script>
+startTimer({
+  onRaf: function(pos, s) {
+    if (!s) return;
+    document.getElementById('fs-time').textContent = fmtSecs(pos);
+    document.getElementById('fs-fill').style.width = (s.progress*100).toFixed(2)+'%';
+  },
+  onUpdate: function(s) {
+    document.getElementById('fs-label').textContent  = s.label  || 'Timer';
+    document.getElementById('fs-status').textContent = s.status.charAt(0).toUpperCase() + s.status.slice(1);
+    var end = document.getElementById('fs-end');
+    if (s.status === 'finished') { end.textContent = s.end_message; end.style.display=''; }
+    else end.style.display = 'none';
+  }
+});
+</script>
+</body>
+</html>

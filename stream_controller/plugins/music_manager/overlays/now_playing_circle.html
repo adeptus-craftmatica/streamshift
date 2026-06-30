@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Now Playing — Circle</title>
+  <link rel="stylesheet" href="/static/now_playing.css">
+  <style>
+    html, body { width: 300px; height: 300px; overflow: hidden; }
+  </style>
+</head>
+<body class="layout-circle">
+<div id="now-playing-root" class="circle-overlay">
+  <svg id="circle-svg" viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg"></svg>
+  <!-- HTML text overlay so title/artist can marquee -->
+  <div class="circle-text-overlay">
+    <div class="circle-title-wrap">
+      <span class="circle-title" id="now-title">—</span>
+    </div>
+    <div class="circle-artist-wrap">
+      <span class="circle-artist" id="now-artist"></span>
+    </div>
+  </div>
+</div>
+<script src="/static/now_playing.js"></script>
+<script>startNowPlaying({ interval: 1000 });</script>
+</body>
+</html>

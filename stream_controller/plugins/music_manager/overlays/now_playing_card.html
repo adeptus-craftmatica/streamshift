@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Now Playing — Card</title>
+  <link rel="stylesheet" href="/static/now_playing.css">
+</head>
+<body class="layout-card">
+<div id="now-playing-root" class="card-overlay">
+  <div class="card-art" id="now-art">♪</div>
+  <div class="card-right">
+    <div class="card-meta">
+      <div class="card-title-wrap">
+        <span class="card-title" id="now-title">Waiting for music…</span>
+      </div>
+      <div class="card-time"><span id="now-position">0:00</span> / <span id="now-duration">0:00</span></div>
+    </div>
+    <div class="card-artist-wrap">
+      <span class="card-artist" id="now-artist"></span>
+    </div>
+    <div class="progress-wrap">
+      <div class="progress-fill" id="now-progress-fill" style="width:0%"></div>
+    </div>
+  </div>
+</div>
+<script src="/static/now_playing.js"></script>
+<script>startNowPlaying({ interval: 500 });</script>
+</body>
+</html>

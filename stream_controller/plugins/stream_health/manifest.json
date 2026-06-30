@@ -1,0 +1,7 @@
+{
+  "name": "Stream Health Monitor",
+  "version": "1.0.0",
+  "description": "Real-time OBS performance dashboard — FPS, CPU, dropped frames, and stream uptime.",
+  "author": "StreamShift",
+  "entry_point": "plugin:StreamHealthPlugin"
+}

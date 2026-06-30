@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: transparent; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; }
+
+#wrap {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.banner {
+  position: relative;
+  width: 100%;
+  height: 90px;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  overflow: hidden;
+  transform: translateY(100%);
+  transition: transform 0.35s ease-out;
+  will-change: transform;
+}
+
+.banner.show {
+  transform: translateY(0);
+}
+
+.banner.hide {
+  transform: translateY(100%);
+  transition: transform 0.4s ease-in;
+}
+
+.accent {
+  width: 8px;
+  flex-shrink: 0;
+}
+
+.icon-area {
+  width: 70px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  flex-shrink: 0;
+}
+
+.text-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 16px;
+  min-width: 0;
+}
+
+.name {
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.msg {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.85);
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.badge-area {
+  display: flex;
+  align-items: center;
+  padding-right: 20px;
+  flex-shrink: 0;
+}
+
+.badge {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 5px 12px;
+  border-radius: 20px;
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.25);
+  backdrop-filter: blur(4px);
+}
+
+/* Shimmer sweep */
+.shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 20%,
+    rgba(255,255,255,0.12) 50%,
+    transparent 80%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 2.5s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+</style>
+</head>
+<body>
+<script>const ALERT_TYPE = '__ALERT_TYPE__';</script>
+<div id="wrap"></div>
+<script>
+const TYPE_COLORS = {
+  follower:   { accent: '#4f9cf9', bg: 'linear-gradient(90deg, #1a1a2e, #16213e, #0f3460)' },
+  subscriber: { accent: '#a855f7', bg: 'linear-gradient(90deg, #2d1b69, #4c1d95, #1e1b4b)' },
+  gift_sub:   { accent: '#ec4899', bg: 'linear-gradient(90deg, #4a044e, #831843, #500724)' },
+  bits:       { accent: '#06b6d4', bg: 'linear-gradient(90deg, #083344, #164e63, #0c4a6e)' },
+  raid:       { accent: '#f97316', bg: 'linear-gradient(90deg, #431407, #7c2d12, #3d1505)' },
+  donation:   { accent: '#22c55e', bg: 'linear-gradient(90deg, #052e16, #14532d, #15803d 90%, #166534)' }
+};
+
+const ICONS = {
+  follower: '👤', subscriber: '⭐', gift_sub: '🎁',
+  bits: '💎', raid: '⚔️', donation: '💰'
+};
+
+const TYPE_LABELS = {
+  follower: 'New Follower', subscriber: 'Subscriber', gift_sub: 'Gift Sub',
+  bits: 'Bits', raid: 'Raid', donation: 'Donation'
+};
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function showAlert(d) {
+  const theme = TYPE_COLORS[d.type] || { accent: '#ffffff', bg: 'linear-gradient(90deg,#111,#222)' };
+  const wrap = document.getElementById('wrap');
+
+  const banner = document.createElement('div');
+  banner.className = 'banner';
+  banner.style.background = theme.bg;
+  banner.innerHTML = `
+    <div class="accent" style="background:${theme.accent};box-shadow:0 0 12px ${theme.accent}88"></div>
+    <div class="icon-area">${ICONS[d.type] || '🎉'}</div>
+    <div class="text-area">
+      <div class="name">${esc(d.name)}</div>
+      <div class="msg">${esc(d.message)}</div>
+    </div>
+    <div class="badge-area">
+      <span class="badge">${esc(TYPE_LABELS[d.type] || d.type)}</span>
+    </div>
+    <div class="shimmer"></div>
+  `;
+
+  wrap.appendChild(banner);
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      banner.classList.add('show');
+    });
+  });
+
+  const dur = Math.max(d.duration || 5000, 1200);
+  setTimeout(() => {
+    banner.classList.add('hide');
+    banner.classList.remove('show');
+    setTimeout(() => banner.remove(), 500);
+  }, dur - 500);
+}
+
+async function poll() {
+  while (true) {
+    try {
+      const r = await fetch('/poll/' + ALERT_TYPE);
+      const data = await r.json();
+      if (data.type === 'style_change') { window.location.href = '/overlay/' + ALERT_TYPE + '?_=' + Date.now(); return; }
+      if (data.type !== 'ping') showAlert(data);
+    } catch (e) {
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+}
+
+poll();
+</script>
+</body>
+</html>

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Bubble Float Chat</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: transparent;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      height: 100vh;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .bubble {
+      position: absolute;
+      max-width: 300px;
+      min-width: 120px;
+      border-radius: 18px;
+      border: 1.5px solid var(--bubble-color, #7c3aed);
+      padding: 10px 14px 11px;
+      pointer-events: none;
+      word-break: break-word;
+      /* tail */
+      filter: drop-shadow(0 0 8px var(--bubble-color, #7c3aed));
+    }
+
+    /* Speech bubble tail */
+    .bubble::after {
+      content: '';
+      position: absolute;
+      bottom: -9px;
+      left: 22px;
+      width: 0; height: 0;
+      border-left: 7px solid transparent;
+      border-right: 7px solid transparent;
+      border-top: 9px solid var(--bubble-color, #7c3aed);
+    }
+
+    .bubble-name {
+      font-weight: 800;
+      font-size: 0.80em;
+      letter-spacing: 0.02em;
+      color: var(--bubble-color, #7c3aed);
+      text-shadow: 0 0 6px var(--bubble-color, #7c3aed);
+      margin-bottom: 3px;
+    }
+
+    .bubble-text {
+      font-size: 0.92em;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+<script>
+(function () {
+  function p(k, d) {
+    var m = location.search.match(new RegExp('[?&]' + k + '=([^&]*)'));
+    return m ? decodeURIComponent(m[1]) : d;
+  }
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function hexRgb(hex) {
+    var h = hex.replace('#','');
+    if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    var n = parseInt(h,16);
+    return [(n>>16)&255,(n>>8)&255,n&255].join(',');
+  }
+
+  var accent  = '#' + p('accent',  '7c3aed');
+  var bg      = '#' + p('bg',      '0d0d0f');
+  var textCol = '#' + p('text',    'f0f0ff');
+  var opacity = (parseInt(p('opacity','88'))/100).toFixed(2);
+  var size    = parseFloat(p('size','13'));
+  var speed   = parseFloat(p('speed','1.0'));   // >1 faster, <1 slower
+  var spread  = parseInt(p('spread','70'));      // % of screen width usable
+
+  document.body.style.fontSize = size + 'px';
+  document.body.style.color    = textCol;
+
+  var bgRgb  = hexRgb(bg);
+  var bgCss  = 'rgba(' + bgRgb + ',' + opacity + ')';
+
+  var lastId = '';
+  var fails  = 0;
+
+  function spawnBubble(msg) {
+    var el = document.createElement('div');
+    el.className = 'bubble';
+
+    var color = msg.color || accent;
+    el.style.setProperty('--bubble-color', color);
+    el.style.background = bgCss;
+    el.style.backdropFilter = 'blur(10px)';
+
+    el.innerHTML =
+      '<div class="bubble-name">' + esc(msg.display_name) + '</div>' +
+      '<div class="bubble-text">'  + esc(msg.text) + '</div>';
+
+    // Start position: random X in usable spread, near the bottom
+    var margin = (100 - spread) / 2;
+    var xPct   = margin + Math.random() * spread;
+    var startY = window.innerHeight - 90;
+
+    el.style.left    = xPct + '%';
+    el.style.top     = startY + 'px';
+    el.style.opacity = '0';
+    document.body.appendChild(el);
+
+    // Cap X so bubble doesn't overflow right edge
+    var bw = el.offsetWidth;
+    var maxLeft = window.innerWidth - bw - 12;
+    var absX = (xPct / 100) * window.innerWidth;
+    if (absX + bw > window.innerWidth - 12) {
+      el.style.left = Math.max(12, maxLeft) + 'px';
+    }
+
+    var duration   = (7000 + Math.random() * 4000) / speed;
+    var rise       = 380 + Math.random() * 200;          // px upward
+    var sineAmp    = 18 + Math.random() * 18;            // horizontal drift
+    var sineFreq   = 0.7 + Math.random() * 0.8;
+    var startTime  = null;
+
+    function frame(ts) {
+      if (!startTime) startTime = ts;
+      var t = Math.min((ts - startTime) / duration, 1);
+
+      // smooth ease
+      var ease = t < 0.5 ? 2*t*t : -1 + (4 - 2*t)*t;
+
+      var y  = startY - rise * ease;
+      var dx = Math.sin(t * Math.PI * 2 * sineFreq) * sineAmp;
+
+      el.style.top  = y + 'px';
+      el.style.transform = 'translateX(' + dx.toFixed(1) + 'px)';
+
+      // fade in 0→15%, full 15→75%, fade out 75→100%
+      var alpha;
+      if      (t < 0.15) alpha = t / 0.15;
+      else if (t > 0.75) alpha = 1 - (t - 0.75) / 0.25;
+      else               alpha = 1;
+      el.style.opacity = alpha.toFixed(3);
+
+      if (t < 1) {
+        requestAnimationFrame(frame);
+      } else {
+        if (el.parentNode) el.parentNode.removeChild(el);
+      }
+    }
+
+    requestAnimationFrame(frame);
+  }
+
+  function poll() {
+    fetch('/api/messages?since=' + encodeURIComponent(lastId))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        fails = 0;
+        var msgs = d.messages || [];
+        if (msgs.length) lastId = msgs[msgs.length - 1].id;
+        msgs.forEach(function (m) { if (!m.deleted) spawnBubble(m); });
+      })
+      .catch(function () {
+        if (++fails >= 6) setTimeout(function () { location.reload(); }, 3000);
+      });
+  }
+
+  setInterval(poll, parseInt(p('interval','800')));
+  poll();
+})();
+</script>
+</body>
+</html>

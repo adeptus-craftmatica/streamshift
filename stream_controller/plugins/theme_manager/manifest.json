@@ -1,0 +1,7 @@
+{
+  "name": "Theme Manager",
+  "version": "1.0.0",
+  "author": "StreamShift",
+  "entry_point": "plugin:ThemeManagerPlugin",
+  "description": "Full app theming — customize every color, save your own themes, and style each stage panel individually."
+}

@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Spotlight Chat</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: transparent;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Dark vignette — disabled via ?vignette=0 */
+    #vignette {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(ellipse 70% 60% at 50% 50%, transparent 30%, rgba(0,0,0,0.65) 100%);
+    }
+
+    .stage {
+      width: 90%;
+      max-width: 720px;
+      position: relative;
+    }
+
+    .card {
+      background: var(--card-bg, rgba(13,13,15,0.90));
+      backdrop-filter: blur(18px);
+      border-radius: 14px;
+      border: 2px solid var(--msg-color, #7c3aed);
+      padding: 22px 26px 20px;
+      box-shadow: 0 0 36px var(--msg-color, #7c3aed),
+                  0 12px 40px rgba(0,0,0,0.55);
+      opacity: 0;
+      pointer-events: none;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card.show {
+      animation: spotIn 0.42s cubic-bezier(.34,1.56,.64,1) forwards;
+    }
+    .card.out {
+      animation: spotOut 0.32s ease forwards;
+    }
+
+    @keyframes spotIn {
+      from { opacity: 0; transform: scale(0.92) translateY(16px); }
+      to   { opacity: 1; transform: scale(1)    translateY(0);    }
+    }
+    @keyframes spotOut {
+      to   { opacity: 0; transform: scale(0.95) translateY(-10px); }
+    }
+
+    /* Animated accent bar across the top */
+    .accent-bar {
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 3px;
+      background: var(--msg-color, #7c3aed);
+      box-shadow: 0 0 10px var(--msg-color, #7c3aed);
+      transform-origin: left;
+      animation: barGrow 0.42s ease forwards;
+    }
+    @keyframes barGrow {
+      from { transform: scaleX(0); }
+      to   { transform: scaleX(1); }
+    }
+
+    .username {
+      font-size: 0.72em;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--msg-color, #7c3aed);
+      text-shadow: 0 0 10px var(--msg-color, #7c3aed);
+      margin-bottom: 9px;
+    }
+
+    .message {
+      font-size: var(--msg-size, 1.15em);
+      color: var(--text-color, #f0f0ff);
+      line-height: 1.55;
+    }
+
+    /* Countdown progress bar at bottom */
+    .progress-bar {
+      position: absolute;
+      bottom: 0; left: 0;
+      height: 3px;
+      background: var(--msg-color, #7c3aed);
+      opacity: 0.45;
+      width: 100%;
+    }
+    .progress-bar.run {
+      animation: shrink linear forwards;
+    }
+    @keyframes shrink {
+      from { width: 100%; }
+      to   { width: 0%; }
+    }
+  </style>
+</head>
+<body>
+<div id="vignette"></div>
+<div class="stage">
+  <div class="card" id="card">
+    <div class="accent-bar" id="accent-bar"></div>
+    <div class="username" id="username"></div>
+    <div class="message"  id="message"></div>
+    <div class="progress-bar" id="progress"></div>
+  </div>
+</div>
+<script>
+(function () {
+  function p(k, d) {
+    var m = location.search.match(new RegExp('[?&]' + k + '=([^&]*)'));
+    return m ? decodeURIComponent(m[1]) : d;
+  }
+  function esc(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function hexRgb(hex) {
+    var h = hex.replace('#','');
+    if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    var n = parseInt(h,16);
+    return [(n>>16)&255,(n>>8)&255,n&255].join(',');
+  }
+
+  var accent   = '#' + p('accent',   '7c3aed');
+  var bg       = '#' + p('bg',       '0d0d0f');
+  var textCol  = '#' + p('text',     'f0f0ff');
+  var opacity  = (parseInt(p('opacity','90'))/100).toFixed(2);
+  var size     = p('size','16');
+  var duration = parseInt(p('duration','6')) * 1000;
+  var vignette = p('vignette','1') !== '0';
+
+  var bgRgb = hexRgb(bg);
+  document.documentElement.style.setProperty('--card-bg',   'rgba(' + bgRgb + ',' + opacity + ')');
+  document.documentElement.style.setProperty('--text-color', textCol);
+  document.documentElement.style.setProperty('--msg-size',   (parseFloat(size)/14).toFixed(2) + 'em');
+  document.body.style.fontSize = size + 'px';
+
+  if (!vignette) document.getElementById('vignette').style.display = 'none';
+
+  var card       = document.getElementById('card');
+  var accentBar  = document.getElementById('accent-bar');
+  var usernameEl = document.getElementById('username');
+  var messageEl  = document.getElementById('message');
+  var progressEl = document.getElementById('progress');
+
+  var lastId   = '';
+  var shownId  = '';
+  var hideTimer = null;
+  var fails    = 0;
+
+  function showMsg(msg) {
+    if (msg.id === shownId) return;
+    shownId = msg.id;
+    if (hideTimer) clearTimeout(hideTimer);
+
+    var color = msg.color || accent;
+
+    // Trigger out animation if already visible, then show new msg
+    function doShow() {
+      card.style.setProperty('--msg-color', color);
+      card.style.borderColor = color;
+
+      // Restart accent bar animation
+      var newBar = accentBar.cloneNode(true);
+      accentBar.parentNode.replaceChild(newBar, accentBar);
+      accentBar = newBar;
+
+      usernameEl.textContent = msg.display_name;
+      messageEl.textContent  = msg.text;
+
+      // Restart progress bar
+      var newProg = progressEl.cloneNode(true);
+      progressEl.parentNode.replaceChild(newProg, progressEl);
+      progressEl = newProg;
+      progressEl.classList.remove('run');
+      void progressEl.offsetWidth;
+      progressEl.style.animationDuration = duration + 'ms';
+      progressEl.classList.add('run');
+
+      // Restart card animation
+      card.classList.remove('show','out');
+      void card.offsetWidth;
+      card.classList.add('show');
+
+      hideTimer = setTimeout(function () {
+        card.classList.remove('show');
+        card.classList.add('out');
+        setTimeout(function () { card.classList.remove('out'); }, 320);
+      }, duration);
+    }
+
+    if (card.classList.contains('show')) {
+      card.classList.remove('show');
+      card.classList.add('out');
+      setTimeout(doShow, 320);
+    } else {
+      doShow();
+    }
+  }
+
+  function poll() {
+    fetch('/api/messages?since=' + encodeURIComponent(lastId))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        fails = 0;
+        var msgs = (d.messages || []).filter(function (m) { return !m.deleted; });
+        if (msgs.length) {
+          lastId = msgs[msgs.length - 1].id;
+          showMsg(msgs[msgs.length - 1]);
+        }
+      })
+      .catch(function () {
+        if (++fails >= 6) setTimeout(function () { location.reload(); }, 3000);
+      });
+  }
+
+  setInterval(poll, 500);
+  poll();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Timer — Card</title>
+  <link rel="stylesheet" href="/static/timer.css">
+</head>
+<body>
+<div class="card-root">
+  <div class="card-wrap t-bg t-border">
+    <div class="card-top-bar"></div>
+    <div class="card-body">
+      <div class="card-label" id="card-label">Timer</div>
+      <div class="card-time"  id="card-time">00:00</div>
+      <div class="card-track">
+        <div class="card-fill" id="card-fill" style="width:0%"></div>
+      </div>
+      <div class="card-bottom">
+        <span class="card-status"  id="card-status">Ready</span>
+        <span class="card-end-msg" id="card-end" style="display:none"></span>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="/static/timer.js"></script>
+<script>
+startTimer({
+  onRaf: function(pos, s) {
+    if (!s) return;
+    document.getElementById('card-time').textContent = fmtSecs(pos);
+    document.getElementById('card-fill').style.width = (s.progress * 100).toFixed(2) + '%';
+  },
+  onUpdate: function(s) {
+    document.getElementById('card-label').textContent  = s.label || 'Timer';
+    document.getElementById('card-status').textContent = s.status.charAt(0).toUpperCase() + s.status.slice(1);
+    var end = document.getElementById('card-end');
+    if (s.status === 'finished') { end.textContent = s.end_message; end.style.display=''; }
+    else { end.style.display='none'; }
+  }
+});
+</script>
+</body>
+</html>

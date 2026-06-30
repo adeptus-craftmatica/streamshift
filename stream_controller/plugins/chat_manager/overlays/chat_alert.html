@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Chat Alert</title>
+  <link rel="stylesheet" href="/static/chat.css">
+  <style>
+    body { display:flex; align-items:center; justify-content:center; height:100vh; }
+
+    .alert-wrap {
+      width:100%; padding:20px;
+      display:flex; align-items:center; justify-content:center;
+    }
+
+    .alert-card {
+      width:100%; max-width:660px;
+      background:rgba(var(--bg-rgb,13,13,15),var(--bg-opacity));
+      backdrop-filter:blur(18px);
+      border-radius:16px;
+      border:2px solid var(--accent);
+      box-shadow:0 0 0 1px rgba(var(--accent-rgb,124,58,237),0.15),
+                 0 8px 48px rgba(var(--accent-rgb,124,58,237),0.40);
+      padding:0;
+      overflow:hidden;
+      display:none;
+    }
+    .alert-card.enter { animation:alertIn 0.5s cubic-bezier(.34,1.4,.64,1) forwards; }
+    .alert-card.leave { animation:alertOut 0.4s ease forwards; }
+
+    @keyframes alertIn  {
+      from { opacity:0; transform:scale(0.82) translateY(18px); }
+      to   { opacity:1; transform:scale(1)    translateY(0); }
+    }
+    @keyframes alertOut {
+      to   { opacity:0; transform:scale(0.93) translateY(-10px); }
+    }
+
+    /* Coloured top bar */
+    .alert-bar {
+      height:5px;
+      background:var(--accent);
+    }
+
+    .alert-inner {
+      padding:18px 20px 18px 18px;
+      display:flex; align-items:center; gap:16px;
+    }
+
+    /* Big bouncing icon */
+    .alert-icon {
+      font-size:2.6em;
+      flex-shrink:0;
+      line-height:1;
+      filter:drop-shadow(0 0 10px rgba(var(--accent-rgb,124,58,237),0.7));
+      animation:none;
+    }
+    .alert-card.enter .alert-icon { animation:iconPop 0.6s cubic-bezier(.34,1.6,.64,1) 0.1s both; }
+    @keyframes iconPop { from{transform:scale(0) rotate(-20deg)} to{transform:scale(1) rotate(0deg)} }
+
+    .alert-body { flex:1; min-width:0; }
+
+    .alert-type-row {
+      display:flex; align-items:center; gap:8px; margin-bottom:5px;
+    }
+    .alert-badge {
+      background:var(--accent);
+      color:#fff;
+      font-size:0.68em;
+      font-weight:800;
+      text-transform:uppercase;
+      letter-spacing:0.1em;
+      padding:2px 8px;
+      border-radius:999px;
+    }
+    .alert-name {
+      font-size:1.15em;
+      font-weight:800;
+      color:var(--text-hi);
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    }
+    .alert-msg {
+      font-size:0.92em;
+      color:var(--text-lo);
+      margin-top:4px;
+      line-height:1.4;
+      white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    }
+
+    /* Bits: show count big */
+    .alert-bits {
+      font-size:1.8em;
+      font-weight:900;
+      color:#fbbf24;
+      flex-shrink:0;
+      text-shadow:0 0 12px rgba(251,191,36,0.5);
+    }
+  </style>
+</head>
+<body>
+<div class="alert-wrap">
+  <div class="alert-card" id="alert-card">
+    <div class="alert-bar"></div>
+    <div class="alert-inner">
+      <div class="alert-icon" id="alert-icon">🎉</div>
+      <div class="alert-body">
+        <div class="alert-type-row">
+          <span class="alert-badge" id="alert-badge">New Sub</span>
+        </div>
+        <div class="alert-name" id="alert-name">Username</div>
+        <div class="alert-msg"  id="alert-msg"></div>
+      </div>
+      <div class="alert-bits" id="alert-bits" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<script src="/static/chat.js"></script>
+<script>
+(function(){
+  function param(k,d){var m=location.search.match(new RegExp('[?&]'+k+'=([^&]*)'));return m?decodeURIComponent(m[1]):d;}
+  function hexRgb(h){h=h.replace('#','');if(h.length===3)h=h[0]+h[0]+h[1]+h[1]+h[2]+h[2];var n=parseInt(h,16);return[(n>>16)&255,(n>>8)&255,n&255].join(',');}
+
+  var R=document.documentElement;
+  var accent=param('accent','7c3aed'), bg=param('bg','0d0d0f'), txt=param('text','f0f0ff');
+  R.style.setProperty('--accent','#'+accent);
+  R.style.setProperty('--accent-rgb',hexRgb(accent));
+  R.style.setProperty('--bg','#'+bg);
+  R.style.setProperty('--bg-rgb',hexRgb(bg));
+  R.style.setProperty('--bg-opacity',(parseInt(param('opacity','90'))/100).toFixed(2));
+  R.style.setProperty('--text-hi','#'+txt);
+  R.style.setProperty('--text-lo','rgba('+hexRgb(txt)+',0.55)');
+  R.style.setProperty('--font-size',param('size','14')+'px');
+
+  var EVENT_TYPES = ['bits','channel_points','sub','resub','subgift','submysterygift','raid','ritual','announcement'];
+
+  var card    = document.getElementById('alert-card');
+  var iconEl  = document.getElementById('alert-icon');
+  var badgeEl = document.getElementById('alert-badge');
+  var nameEl  = document.getElementById('alert-name');
+  var msgEl   = document.getElementById('alert-msg');
+  var bitsEl  = document.getElementById('alert-bits');
+
+  var _fetchedId = '';
+  var _shownId   = '';
+  var _timer     = null;
+  var duration   = parseInt(param('duration','7'))*1000;
+
+  var ICONS = {
+    bits:'💎', channel_points:'⭐', sub:'🎉', resub:'🔄',
+    subgift:'🎁', submysterygift:'🎁', raid:'⚔', ritual:'👋', announcement:'📢'
+  };
+  var LABELS = {
+    bits:'Bits Cheer', channel_points:'Channel Points', sub:'New Sub', resub:'Resub',
+    subgift:'Gift Sub', submysterygift:'Mystery Gifts', raid:'Raid', ritual:'New Chatter', announcement:'Announcement'
+  };
+
+  function show(msg) {
+    if (msg.id === _shownId) return;
+    _shownId = msg.id;
+    if (_timer) { clearTimeout(_timer); _timer = null; }
+
+    iconEl.textContent  = ICONS[msg.msg_type]  || '🎉';
+    badgeEl.textContent = LABELS[msg.msg_type] || msg.event_label || msg.msg_type;
+    var badges = (msg.badges||[]).join(' ');
+    nameEl.textContent  = (badges ? badges+' ' : '') + msg.display_name;
+
+    // Bits: show count prominently
+    if (msg.msg_type === 'bits' && msg.bits) {
+      bitsEl.textContent = msg.bits.toLocaleString();
+      bitsEl.style.display = 'block';
+      msgEl.textContent = msg.text || '';
+    } else {
+      bitsEl.style.display = 'none';
+      msgEl.textContent = msg.text || '';
+    }
+
+    // Trigger enter animation
+    card.classList.remove('enter','leave');
+    card.style.display = 'block';
+    void card.offsetWidth;
+    card.classList.add('enter');
+
+    _timer = setTimeout(function(){
+      card.classList.remove('enter');
+      card.classList.add('leave');
+      setTimeout(function(){
+        card.style.display = 'none';
+        card.classList.remove('leave');
+      }, 450);
+    }, duration);
+  }
+
+  function poll(){
+    fetch('/api/messages?since='+encodeURIComponent(_fetchedId))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var msgs = (d.messages||[]).filter(function(m){
+          return !m.deleted && EVENT_TYPES.indexOf(m.msg_type) !== -1;
+        });
+        if (msgs.length > 0) {
+          _fetchedId = msgs[msgs.length-1].id;
+          show(msgs[msgs.length-1]);
+        } else {
+          // Still need to advance cursor so we don't re-show old events
+          var all = d.messages || [];
+          if (all.length > 0) _fetchedId = all[all.length-1].id;
+        }
+      })
+      .catch(function(){});
+  }
+
+  setInterval(poll, parseInt(param('interval','600')));
+  poll();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Now Playing — Cassette</title>
+  <link rel="stylesheet" href="/static/now_playing.css">
+  <style>
+    body.layout-cassette {
+      display: flex; align-items: center; justify-content: center;
+      background: transparent;
+    }
+    .cassette-root {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 0;
+      width: 420px;
+    }
+
+    /* Cassette body */
+    .cassette-body {
+      position: relative;
+      width: 420px; height: 140px;
+      background: #1c1c1c;
+      border-radius: 10px 10px 14px 14px;
+      border: 1.5px solid #2e2e2e;
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.06),
+        0 4px 20px rgba(0,0,0,0.55),
+        0 1px 3px rgba(0,0,0,0.8);
+      overflow: hidden;
+    }
+    /* Top label strip */
+    .cassette-label {
+      position: absolute;
+      top: 12px; left: 14px; right: 14px;
+      height: 28px;
+      background: var(--bg-color, #0a121c);
+      border-radius: 4px;
+      border: 1px solid rgba(255,255,255,0.07);
+      display: flex; align-items: center;
+      padding: 0 12px; gap: 8px;
+      overflow: hidden;
+    }
+    .cassette-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent, #3f94bf);
+      flex-shrink: 0;
+      box-shadow: 0 0 6px var(--accent, #3f94bf);
+    }
+    .cassette-dot.paused { background: rgba(255,255,255,0.3); box-shadow: none; }
+    .cassette-label-title {
+      font-size: 11px; font-weight: 700; font-family: monospace;
+      letter-spacing: .08em; text-transform: uppercase;
+      color: var(--text-hi, #eef6ff);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      flex: 1;
+    }
+    .cassette-label-artist {
+      font-size: 10px; font-weight: 500;
+      color: var(--accent, #3f94bf);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      flex-shrink: 0; max-width: 130px;
+    }
+
+    /* Canvas for reels */
+    #cassette-canvas {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      width: 100%; height: 108px;
+    }
+
+    /* Screw holes at corners */
+    .cassette-screw {
+      position: absolute;
+      width: 10px; height: 10px; border-radius: 50%;
+      border: 1px solid #333;
+      background: #111;
+    }
+    .cassette-screw.tl { top: 10px; left: 10px; }
+    .cassette-screw.tr { top: 10px; right: 10px; }
+    .cassette-screw.bl { bottom: 8px; left: 10px; }
+    .cassette-screw.br { bottom: 8px; right: 10px; }
+
+    /* Bottom info strip */
+    .cassette-info {
+      width: 420px;
+      background: rgba(10,18,28,0.85);
+      border: 1.5px solid #1a2535;
+      border-top: none;
+      border-radius: 0 0 8px 8px;
+      padding: 7px 14px 8px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .cassette-time {
+      font-size: 10px; font-family: monospace;
+      color: var(--text-lo, rgba(238,246,255,0.55));
+      flex-shrink: 0; width: 34px;
+    }
+    .cassette-time.right { text-align: right; }
+    .cassette-bar-wrap {
+      flex: 1; height: 3px;
+      background: rgba(255,255,255,0.10);
+      border-radius: 2px; overflow: hidden;
+    }
+    .cassette-bar-fill {
+      height: 100%; width: 0%;
+      background: var(--accent, #3f94bf);
+      border-radius: 2px;
+      box-shadow: 0 0 6px var(--accent, #3f94bf);
+      transition: width .12s linear;
+    }
+  </style>
+</head>
+<body class="layout-cassette">
+<div id="now-playing-root" class="cassette-root">
+
+  <div class="cassette-body">
+    <div class="cassette-label">
+      <div class="cassette-dot" id="cas-dot"></div>
+      <span class="cassette-label-title"  id="now-title">—</span>
+      <span class="cassette-label-artist" id="now-artist"></span>
+    </div>
+    <canvas id="cassette-canvas"></canvas>
+    <div class="cassette-screw tl"></div>
+    <div class="cassette-screw tr"></div>
+    <div class="cassette-screw bl"></div>
+    <div class="cassette-screw br"></div>
+  </div>
+
+  <div class="cassette-info">
+    <span class="cassette-time"       id="now-position">0:00</span>
+    <div  class="cassette-bar-wrap">
+      <div class="cassette-bar-fill"  id="now-progress-fill"></div>
+    </div>
+    <span class="cassette-time right" id="now-duration">0:00</span>
+  </div>
+
+</div>
+<script src="/static/now_playing.js"></script>
+<script>
+(function () {
+  var canvas = document.getElementById('cassette-canvas');
+  var ctx    = canvas.getContext('2d');
+  var W = 420, H = 108;
+  canvas.width  = W;
+  canvas.height = H;
+
+  /* Reel centres */
+  var LX = 122, RX = 298, RY = 60, WINDOW_R = 44;
+  var HUB_R = 14;        /* inner hub radius */
+  var TAPE_MAX = 28;     /* max tape winding thickness */
+  var SPOKE_COUNT = 6;
+
+  var progress = 0;      /* 0..1 */
+  var leftAngle  = 0;
+  var rightAngle = 0;
+  var playing    = false;
+
+  /* Live accent colour — re-read from CSS var so theme changes apply instantly */
+  function hexRGB(h) {
+    h = (h || '#3f94bf').replace('#','');
+    if (h.length === 3) h = h[0]+h[0]+h[1]+h[1]+h[2]+h[2];
+    return [parseInt(h.slice(0,2),16)||63, parseInt(h.slice(2,4),16)||148, parseInt(h.slice(4,6),16)||191];
+  }
+  var ac = [63, 148, 191];
+  function syncAccent() {
+    var raw = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+    ac = hexRGB(raw);
+  }
+  syncAccent();
+  window.__onThemeChange = function() { syncAccent(); };
+
+  function drawReel(cx, tapeR, angle) {
+    /* Window hole background */
+    ctx.beginPath();
+    ctx.arc(cx, RY, WINDOW_R, 0, Math.PI * 2);
+    ctx.fillStyle = '#111';
+    ctx.fill();
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    /* Tape winding (annular ring) */
+    if (tapeR > HUB_R + 1) {
+      ctx.beginPath();
+      ctx.arc(cx, RY, tapeR, 0, Math.PI * 2);
+      ctx.fillStyle = '#3a2a1a';
+      ctx.fill();
+    }
+
+    /* Hub */
+    ctx.beginPath();
+    ctx.arc(cx, RY, HUB_R, 0, Math.PI * 2);
+    ctx.fillStyle = '#222';
+    ctx.fill();
+    ctx.strokeStyle = '#3a3a3a';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    /* Spokes */
+    for (var i = 0; i < SPOKE_COUNT; i++) {
+      var a = angle + (i / SPOKE_COUNT) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * (HUB_R - 2), RY + Math.sin(a) * (HUB_R - 2));
+      ctx.lineTo(cx + Math.cos(a) * (tapeR > HUB_R + 1 ? tapeR - 2 : WINDOW_R - 6), RY + Math.sin(a) * (tapeR > HUB_R + 1 ? tapeR - 2 : WINDOW_R - 6));
+      ctx.strokeStyle = '#444';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+
+    /* Hub centre dot */
+    ctx.beginPath();
+    ctx.arc(cx, RY, 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#555';
+    ctx.fill();
+  }
+
+  function drawTapeWindow() {
+    /* The tape opening at top — two guide posts with tape string between */
+    var topY = 4;
+    var postR = 5;
+    var leftPostX  = LX + WINDOW_R - 2;
+    var rightPostX = RX - WINDOW_R + 2;
+
+    /* tape line */
+    ctx.beginPath();
+    ctx.moveTo(leftPostX + postR, topY + postR);
+    ctx.lineTo(rightPostX - postR, topY + postR);
+    ctx.strokeStyle = '#3a2a1a';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    /* left post */
+    ctx.beginPath();
+    ctx.arc(leftPostX, topY + postR, postR, 0, Math.PI * 2);
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fill();
+    ctx.strokeStyle = '#404040';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    /* right post */
+    ctx.beginPath();
+    ctx.arc(rightPostX, topY + postR, postR, 0, Math.PI * 2);
+    ctx.fillStyle = '#2a2a2a';
+    ctx.fill();
+    ctx.strokeStyle = '#404040';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
+  function drawAccentLine() {
+    ctx.beginPath();
+    ctx.moveTo(0, 0); ctx.lineTo(W, 0);
+    ctx.strokeStyle = 'rgba('+ac[0]+','+ac[1]+','+ac[2]+',0.35)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+
+  function accentCss() { return 'rgb('+ac[0]+','+ac[1]+','+ac[2]+')'; }
+
+  var lastTs = null;
+  function raf(ts) {
+    if (lastTs === null) lastTs = ts;
+    var dt = Math.min((ts - lastTs) / 1000, 0.1);
+    lastTs = ts;
+
+    if (playing) {
+      /* Left reel (supply) shrinks: large at start, small at end — angular vel ∝ 1/r */
+      var leftTapeR  = HUB_R + TAPE_MAX * (1 - progress);
+      /* Right reel (take-up) grows: small at start, large at end */
+      var rightTapeR = HUB_R + TAPE_MAX * progress;
+
+      var leftOmega  = leftTapeR  > 2 ? 1.5 / leftTapeR  : 0.8;
+      var rightOmega = rightTapeR > 2 ? 1.5 / rightTapeR : 0.8;
+
+      leftAngle  += dt * leftOmega  * 10;
+      rightAngle += dt * rightOmega * 10;
+    }
+
+    ctx.clearRect(0, 0, W, H);
+    drawAccentLine();
+    drawTapeWindow();
+
+    var leftTapeR  = HUB_R + TAPE_MAX * Math.max(0, 1 - progress);
+    var rightTapeR = HUB_R + TAPE_MAX * Math.min(1, progress);
+    drawReel(LX, leftTapeR,  leftAngle);
+    drawReel(RX, rightTapeR, rightAngle);
+
+    requestAnimationFrame(raf);
+  }
+  requestAnimationFrame(raf);
+
+  startNowPlaying({
+    interval: 500,
+    onUpdate: function (s) {
+      playing = s.status === 'playing';
+      var dot = document.getElementById('cas-dot');
+      if (dot) dot.classList.toggle('paused', !playing);
+    },
+    onRaf: function (pos, latest) {
+      if (!latest || !latest.duration) return;
+      progress = Math.min(1, Math.max(0, pos / latest.duration));
+      var fill = document.getElementById('now-progress-fill');
+      if (fill) fill.style.width = (progress * 100).toFixed(2) + '%';
+    },
+  });
+}());
+</script>
+</body>
+</html>

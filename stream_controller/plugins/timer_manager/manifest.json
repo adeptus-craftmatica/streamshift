@@ -1,0 +1,7 @@
+{
+  "name": "Timer Manager",
+  "version": "0.1.0",
+  "description": "Countdown and count-up timers with customisable browser-source overlays for streamers.",
+  "author": "StreamShift",
+  "entry_point": "plugin:TimerManagerPlugin"
+}

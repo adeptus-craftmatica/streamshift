@@ -1,0 +1,7 @@
+{
+  "name": "Quick Connect",
+  "version": "1.0.0",
+  "description": "Connect and disconnect all your streaming services with one click.",
+  "author": "StreamShift",
+  "entry_point": "plugin:QuickConnectPlugin"
+}

@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: transparent; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; }
+
+#wrap {
+  position: fixed;
+  top: 30px;
+  right: 30px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: flex-end;
+}
+
+.toast {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px 10px 14px;
+  background: rgba(22, 22, 32, 0.96);
+  border-radius: 50px;
+  max-width: 350px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.45), 0 1px 4px rgba(0,0,0,0.3);
+  overflow: hidden;
+  opacity: 0;
+  transform: translateX(calc(100% + 40px));
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  will-change: transform, opacity;
+}
+
+.toast.show {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.toast.hide {
+  opacity: 0;
+  transform: translateX(calc(100% + 40px));
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.text {
+  font-size: 14px;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+.text .name {
+  font-weight: 700;
+}
+
+.text .sep {
+  color: rgba(255,255,255,0.4);
+  margin: 0 4px;
+}
+
+.text .msg {
+  color: rgba(255,255,255,0.75);
+}
+
+/* Progress bar at bottom of pill */
+.progress-track {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(255,255,255,0.08);
+  border-radius: 0 0 50px 50px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  width: 100%;
+  border-radius: 0 0 50px 50px;
+  transform-origin: left center;
+  transform: scaleX(1);
+  transition: transform linear;
+}
+</style>
+</head>
+<body>
+<script>const ALERT_TYPE = '__ALERT_TYPE__';</script>
+<div id="wrap"></div>
+<script>
+const TYPE_COLORS = {
+  follower:   '#4f9cf9',
+  subscriber: '#a855f7',
+  gift_sub:   '#ec4899',
+  bits:       '#06b6d4',
+  raid:       '#f97316',
+  donation:   '#22c55e'
+};
+
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function showAlert(d) {
+  const color = TYPE_COLORS[d.type] || '#ffffff';
+  const dur = Math.max(d.duration || 5000, 1200);
+  const wrap = document.getElementById('wrap');
+
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.innerHTML = `
+    <div class="dot" style="background:${color};box-shadow:0 0 6px ${color}"></div>
+    <div class="text">
+      <span class="name">${esc(d.name)}</span><span class="sep">·</span><span class="msg">${esc(d.message)}</span>
+    </div>
+    <div class="progress-track">
+      <div class="progress-bar" style="background:${color};opacity:0.6"></div>
+    </div>
+  `;
+
+  wrap.appendChild(toast);
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      toast.classList.add('show');
+
+      // Start progress bar shrink after entrance
+      const bar = toast.querySelector('.progress-bar');
+      const dismissAt = dur - 400;
+      bar.style.transition = `transform ${dismissAt}ms linear`;
+      requestAnimationFrame(() => {
+        bar.style.transform = 'scaleX(0)';
+      });
+    });
+  });
+
+  setTimeout(() => {
+    toast.classList.add('hide');
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 400);
+  }, dur - 400);
+}
+
+async function poll() {
+  while (true) {
+    try {
+      const r = await fetch('/poll/' + ALERT_TYPE);
+      const data = await r.json();
+      if (data.type === 'style_change') { window.location.href = '/overlay/' + ALERT_TYPE + '?_=' + Date.now(); return; }
+      if (data.type !== 'ping') showAlert(data);
+    } catch (e) {
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+}
+
+poll();
+</script>
+</body>
+</html>

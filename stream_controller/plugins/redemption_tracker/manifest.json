@@ -1,0 +1,7 @@
+{
+  "name": "Redemption Tracker",
+  "version": "1.0.0",
+  "description": "Track and complete channel point redemptions and bit cheers from your stage view.",
+  "author": "StreamShift",
+  "entry_point": "plugin:RedemptionTrackerPlugin"
+}

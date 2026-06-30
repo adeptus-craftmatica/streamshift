@@ -1,0 +1,7 @@
+{
+  "name": "OBS Studio",
+  "version": "0.1.0",
+  "description": "Real OBS Studio integration with connection controls, scene switching, audio mute toggles, overlay visibility actions, and output status.",
+  "author": "OpenAI Codex",
+  "entry_point": "plugin:OBSStudioPlugin"
+}

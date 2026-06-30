@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: transparent; overflow: hidden; font-family: 'Courier New', Courier, monospace; }
+
+#wrap {
+  position: fixed;
+  bottom: 80px;
+  right: 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.card {
+  position: relative;
+  width: 380px;
+  background: rgba(0, 0, 0, 0.92);
+  border: 2px solid currentColor;
+  border-radius: 4px;
+  padding: 16px 20px;
+  overflow: hidden;
+  opacity: 0;
+  transform: translateX(120%);
+  transition: opacity 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+              transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  will-change: transform, opacity;
+}
+
+.card.show {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.card.hide {
+  opacity: 0;
+  transform: translateX(120%);
+  transition: opacity 0.35s ease-in, transform 0.35s ease-in;
+}
+
+/* Scan line */
+.card::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: currentColor;
+  opacity: 0.15;
+  top: 0;
+  animation: scan 2s linear infinite;
+}
+
+@keyframes scan {
+  0%   { top: 0; }
+  100% { top: 100%; }
+}
+
+/* Corner accents */
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, currentColor 0%, transparent 30%),
+              linear-gradient(315deg, currentColor 0%, transparent 30%);
+  opacity: 0.04;
+  pointer-events: none;
+}
+
+.type-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  opacity: 0.7;
+  margin-bottom: 8px;
+}
+
+.icon-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.icon {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.name {
+  font-size: 20px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: currentColor;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.msg {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.75);
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.glitch-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: currentColor;
+}
+</style>
+</head>
+<body>
+<script>const ALERT_TYPE = '__ALERT_TYPE__';</script>
+<div id="wrap"></div>
+<script>
+const TYPE_COLORS = {
+  follower:   '#00ff88',
+  subscriber: '#ff00ff',
+  gift_sub:   '#ffff00',
+  bits:       '#00ffff',
+  raid:       '#ff4400',
+  donation:   '#00ff00'
+};
+
+const ICONS = {
+  follower: '👤',
+  subscriber: '⭐',
+  gift_sub: '🎁',
+  bits: '💎',
+  raid: '⚔️',
+  donation: '💰'
+};
+
+const TYPE_LABELS = {
+  follower: 'New Follower',
+  subscriber: 'Subscriber',
+  gift_sub: 'Gift Sub',
+  bits: 'Bits Cheer',
+  raid: 'Raid',
+  donation: 'Donation'
+};
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function showAlert(d) {
+  const color = TYPE_COLORS[d.type] || '#ffffff';
+  const wrap = document.getElementById('wrap');
+
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.style.color = color;
+  card.style.boxShadow = `0 0 20px ${color}55, 0 0 40px ${color}22, inset 0 0 20px ${color}08`;
+
+  card.innerHTML = `
+    <div class="glitch-bar"></div>
+    <div class="type-badge">${esc(TYPE_LABELS[d.type] || d.type)}</div>
+    <div class="icon-row">
+      <div class="icon">${ICONS[d.type] || '🎉'}</div>
+      <div class="name">${esc(d.name)}</div>
+    </div>
+    <div class="msg">${esc(d.message)}</div>
+  `;
+
+  wrap.appendChild(card);
+
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      card.classList.add('show');
+    });
+  });
+
+  const dur = Math.max(d.duration || 5000, 1200);
+  setTimeout(() => {
+    card.classList.add('hide');
+    card.classList.remove('show');
+    setTimeout(() => card.remove(), 450);
+  }, dur - 450);
+}
+
+async function poll() {
+  while (true) {
+    try {
+      const r = await fetch('/poll/' + ALERT_TYPE);
+      const data = await r.json();
+      if (data.type === 'style_change') { window.location.href = '/overlay/' + ALERT_TYPE + '?_=' + Date.now(); return; }
+      if (data.type !== 'ping') showAlert(data);
+    } catch (e) {
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+}
+
+poll();
+</script>
+</body>
+</html>

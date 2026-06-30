@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: transparent; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; }
+
+#wrap {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#gear-canvas {
+  display: block;
+  width: 540px;
+  height: 70px;
+}
+
+.plate {
+  position: relative;
+  width: 500px;
+  padding: 20px 28px;
+  background: linear-gradient(160deg, #1c1208, #2d1a08, #1a1008);
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.9), 0 0 24px var(--accent-33), inset 0 1px 0 rgba(255,200,80,0.1);
+  opacity: 0;
+  transform: scaleX(0.05);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.plate + .plate {
+  margin-top: 0;
+}
+
+.plate::before {
+  content: '◆';
+  position: absolute;
+  top: 5px;
+  left: 7px;
+  font-size: 9px;
+  color: var(--accent);
+  opacity: 0.5;
+  line-height: 1;
+}
+
+.plate::after {
+  content: '◆';
+  position: absolute;
+  bottom: 5px;
+  right: 7px;
+  font-size: 9px;
+  color: var(--accent);
+  opacity: 0.5;
+  line-height: 1;
+}
+
+@keyframes plateIn {
+  from { opacity: 0; transform: scaleX(0.05); }
+  to   { opacity: 1; transform: scaleX(1); }
+}
+
+@keyframes plateOut {
+  from { opacity: 1; transform: scaleX(1); }
+  to   { opacity: 0; transform: scaleX(0.05); }
+}
+
+.plate.show {
+  animation: plateIn 0.55s cubic-bezier(0.34,1.56,0.64,1) forwards;
+}
+
+.plate.hide {
+  animation: plateOut 0.4s ease-in forwards;
+}
+
+@keyframes spinIcon {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+.gear-icon {
+  font-size: 36px;
+  flex-shrink: 0;
+  line-height: 1;
+  animation: spinIcon 3s linear infinite;
+  display: inline-block;
+}
+
+.text-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.type-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--accent);
+  opacity: 0.8;
+}
+
+.name {
+  font-size: 21px;
+  font-weight: 700;
+  color: #f0d090;
+  text-shadow: 0 0 12px var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.msg {
+  font-size: 13px;
+  color: rgba(210,175,100,0.75);
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.progress-wrap {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(255,255,255,0.08);
+}
+
+.progress-bar {
+  height: 100%;
+  background: var(--accent);
+  width: 100%;
+  transition: width linear;
+}
+</style>
+</head>
+<body>
+<script>const ALERT_TYPE = '__ALERT_TYPE__';</script>
+<div id="wrap">
+  <canvas id="gear-canvas" width="540" height="70"></canvas>
+</div>
+<script>
+const ACCENT = '#' + (new URLSearchParams(location.search).get('accent') || 'b87820');
+
+document.documentElement.style.setProperty('--accent', ACCENT);
+document.documentElement.style.setProperty('--accent-33', ACCENT + '33');
+
+const TYPE_LABELS = {
+  follower:   'New Follower',
+  subscriber: 'New Subscriber',
+  gift_sub:   'Gift Sub',
+  bits:       'Bits Cheered',
+  raid:       'Raid Incoming',
+  donation:   'Donation'
+};
+
+const ICONS = {
+  follower:   '⚙️',
+  subscriber: '🔩',
+  gift_sub:   '🔧',
+  bits:       '⚡',
+  raid:       '⚔️',
+  donation:   '🏆'
+};
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+/* ── Gear canvas animation ── */
+const canvas = document.getElementById('gear-canvas');
+const ctx = canvas.getContext('2d');
+
+function drawGear(ctx, cx, cy, outerR, teeth, angle, accent) {
+  const innerR = outerR * 0.65;
+  const toothH = outerR - innerR;
+  const toothW = (2 * Math.PI / teeth) * 0.4;
+  const holeR  = outerR * 0.22;
+
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angle);
+
+  ctx.beginPath();
+  for (let i = 0; i < teeth; i++) {
+    const a0 = (i / teeth) * Math.PI * 2;
+    const a1 = a0 + toothW;
+    const a2 = a0 + (Math.PI / teeth);
+    const a3 = a2 + toothW;
+    ctx.arc(0, 0, innerR, a0 - toothW * 0.5, a0, false);
+    ctx.lineTo(Math.cos(a0) * outerR, Math.sin(a0) * outerR);
+    ctx.lineTo(Math.cos(a1) * outerR, Math.sin(a1) * outerR);
+    ctx.arc(0, 0, innerR, a1, a2, false);
+    ctx.lineTo(Math.cos(a2) * outerR, Math.sin(a2) * outerR);
+    ctx.lineTo(Math.cos(a3) * outerR, Math.sin(a3) * outerR);
+    ctx.arc(0, 0, innerR, a3, a0 + Math.PI * 2 / teeth - toothW * 0.5, false);
+  }
+  ctx.closePath();
+
+  ctx.fillStyle = accent + '22';
+  ctx.fill();
+  ctx.strokeStyle = accent + '88';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(0, 0, holeR, 0, Math.PI * 2);
+  ctx.fillStyle = accent + '44';
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+const gears = [
+  { cx: 50,  cy: 48, r: 26, teeth: 10, angle: 0, dir:  1 },
+  { cx: 115, cy: 40, r: 32, teeth: 12, angle: 0, dir: -1 },
+  { cx: 200, cy: 50, r: 22, teeth:  8, angle: 0, dir:  1 },
+  { cx: 260, cy: 38, r: 30, teeth: 11, angle: 0, dir: -1 },
+  { cx: 355, cy: 48, r: 25, teeth: 10, angle: 0, dir:  1 },
+  { cx: 430, cy: 36, r: 34, teeth: 13, angle: 0, dir: -1 },
+];
+
+let last = null;
+function animateGears(ts) {
+  if (!last) last = ts;
+  const dt = (ts - last) / 1000;
+  last = ts;
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  for (const g of gears) {
+    g.angle += g.dir * (Math.PI / (g.r * 0.9)) * dt * 30;
+    drawGear(ctx, g.cx, g.cy, g.r, g.teeth, g.angle, ACCENT);
+  }
+  requestAnimationFrame(animateGears);
+}
+requestAnimationFrame(animateGears);
+
+/* ── Alert display ── */
+function showAlert(d) {
+  const wrap = document.getElementById('wrap');
+  const plate = document.createElement('div');
+  plate.className = 'plate';
+  plate.style.setProperty('--accent', ACCENT);
+  plate.style.setProperty('--accent-33', ACCENT + '33');
+
+  const label = TYPE_LABELS[d.type] || d.type;
+  const icon  = ICONS[d.type] || '⚙️';
+  const msg   = d.message ? `<div class="msg">${esc(d.message)}</div>` : '';
+
+  plate.innerHTML = `
+    <span class="gear-icon">${icon}</span>
+    <div class="text-body">
+      <div class="type-badge">${esc(label)}</div>
+      <div class="name">${esc(d.name)}</div>
+      ${msg}
+    </div>
+    <div class="progress-wrap"><div class="progress-bar"></div></div>
+  `;
+
+  wrap.appendChild(plate);
+
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    plate.classList.add('show');
+
+    const dur = Math.max(d.duration || 5000, 1200);
+    const bar = plate.querySelector('.progress-bar');
+    bar.style.transition = `width ${dur}ms linear`;
+    requestAnimationFrame(() => { bar.style.width = '0%'; });
+
+    setTimeout(() => {
+      plate.classList.add('hide');
+      plate.classList.remove('show');
+      setTimeout(() => plate.remove(), 500);
+    }, dur - 500);
+  }));
+}
+
+async function poll() {
+  while (true) {
+    try {
+      const r = await fetch('/poll/' + ALERT_TYPE);
+      const data = await r.json();
+      if (data.type === 'style_change') { window.location.href = '/overlay/' + ALERT_TYPE + '?_=' + Date.now(); return; }
+      if (data.type !== 'ping') showAlert(data);
+    } catch (e) {
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+}
+poll();
+</script>
+</body>
+</html>

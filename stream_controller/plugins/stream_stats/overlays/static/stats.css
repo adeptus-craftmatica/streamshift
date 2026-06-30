@@ -1,0 +1,91 @@
+:root {
+  --accent: #7c3aed;
+  --accent-rgb: 124,58,237;
+  --bg: #0d0d0f;
+  --bg-rgb: 13,13,15;
+  --bg-opacity: 0.92;
+  --text-hi: #f0f0ff;
+  --text-lo: rgba(240,240,255,0.55);
+  --green: #22c55e;
+  --gold: #f59e0b;
+  --pink: #ec4899;
+  --blue: #38bdf8;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',system-ui,sans-serif;background:transparent;color:var(--text-hi)}
+
+/* ── combined card ───────────────────────────────────────────── */
+.card{
+  background:rgba(var(--bg-rgb),var(--bg-opacity));
+  border:1px solid rgba(var(--accent-rgb),0.3);
+  border-radius:14px;
+  padding:20px 24px;
+  display:inline-flex;flex-direction:column;gap:12px;
+  min-width:260px;
+}
+.card-title{font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-lo)}
+.stat-row{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.stat-label{font-size:13px;color:var(--text-lo)}
+.stat-value{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.stat-value.green{color:var(--green)}
+.stat-value.gold{color:var(--gold)}
+.stat-value.pink{color:var(--pink)}
+.stat-value.blue{color:var(--blue)}
+.stat-value.accent{color:rgba(var(--accent-rgb),1)}
+.divider{height:1px;background:rgba(255,255,255,.07)}
+.latest{font-size:12px;color:var(--text-lo);text-align:center}
+.latest span{color:var(--green);font-weight:600}
+
+/* ── followers overlay ───────────────────────────────────────── */
+.fol-wrap{
+  background:rgba(var(--bg-rgb),var(--bg-opacity));
+  border:1px solid rgba(var(--accent-rgb),0.35);
+  border-radius:50px;
+  padding:10px 28px;
+  display:inline-flex;align-items:center;gap:14px;
+  white-space:nowrap;
+}
+.fol-icon{font-size:20px}
+.fol-col{}
+.fol-label{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-lo)}
+.fol-count{font-size:28px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--green)}
+.fol-gained{font-size:13px;color:var(--text-lo)}.fol-gained span{color:var(--green);font-weight:700}
+
+/* ── bar overlay ─────────────────────────────────────────────── */
+.bar{
+  background:rgba(var(--bg-rgb),var(--bg-opacity));
+  border:1px solid rgba(var(--accent-rgb),0.3);
+  border-radius:10px;
+  padding:10px 20px;
+  display:inline-flex;align-items:center;gap:24px;
+  white-space:nowrap;
+}
+.bar-item{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:52px}
+.bar-val{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.bar-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--text-lo)}
+.sep{width:1px;height:32px;background:rgba(255,255,255,.1)}
+
+/* ── ticker overlay ──────────────────────────────────────────── */
+.ticker{
+  overflow:hidden;white-space:nowrap;
+  background:rgba(var(--bg-rgb),0.88);
+  border-top:2px solid rgba(var(--accent-rgb),0.6);
+  padding:8px 0;font-size:15px;font-weight:600;
+}
+.ticker-inner{display:inline-block;animation:tick 20s linear infinite}
+@keyframes tick{from{transform:translateX(100vw)}to{transform:translateX(-100%)}}
+.ticker span{margin:0 32px;color:var(--text-lo)}
+.ticker b{color:var(--green)}
+
+/* ── minimal ─────────────────────────────────────────────────── */
+.min{
+  background:rgba(var(--bg-rgb),0.88);
+  border-left:3px solid rgba(var(--accent-rgb),1);
+  border-radius:0 8px 8px 0;
+  padding:8px 16px;
+  display:inline-flex;flex-direction:column;gap:4px;
+  min-width:180px;
+}
+.min-row{display:flex;justify-content:space-between;gap:12px;font-size:14px}
+.min-label{color:var(--text-lo);font-size:12px}
+.min-val{font-weight:700;font-variant-numeric:tabular-nums}

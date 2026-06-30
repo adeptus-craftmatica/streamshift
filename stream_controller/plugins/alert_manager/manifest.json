@@ -1,0 +1,8 @@
+{
+  "name": "Alert Manager",
+  "version": "1.0.0",
+  "description": "Animated follower, subscriber, bits, raid, and donation alerts with customizable overlays.",
+  "author": "StreamShift",
+  "entry_point": "plugin:AlertManagerPlugin",
+  "plugin_class": "AlertManagerPlugin"
+}

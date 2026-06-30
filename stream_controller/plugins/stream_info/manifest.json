@@ -1,0 +1,7 @@
+{
+  "name": "Stream Info",
+  "version": "0.1.0",
+  "description": "Update stream title and category on the fly, go live, and end your stream — all from StreamShift.",
+  "author": "StreamShift",
+  "entry_point": "plugin:StreamInfoPlugin"
+}

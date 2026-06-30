@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PNGtuber Avatar</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100vw;
+    height: 100vh;
+    background: transparent;
+  }
+  #canvas {
+    position: relative;
+    flex-shrink: 0;
+    width: 800px;
+    height: 800px;
+  }
+  #canvas img {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    object-fit: contain;
+    opacity: 0;
+    transition: opacity 80ms ease-in-out;
+  }
+  #canvas img.visible { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="canvas">
+  <img id="img-idle" src="" alt="">
+  <img id="img-talking" src="" alt="">
+  <img id="img-idle_blink" src="" alt="">
+  <img id="img-talking_blink" src="" alt="">
+</div>
+<script>
+  const LAYERS = ["idle", "talking", "idle_blink", "talking_blink"];
+  const imgs = {};
+  LAYERS.forEach(l => { imgs[l] = document.getElementById("img-" + l); });
+
+  const params = new URLSearchParams(location.search);
+  const chromaParam = params.get("chroma");
+  const wParam = parseInt(params.get("w")) || 0;
+  const hParam = parseInt(params.get("h")) || 0;
+
+  let currentState = null;
+  let currentExpression = null;
+  let initialized = false;
+
+  function applyChroma(color) {
+    document.body.style.background = "#" + color;
+  }
+
+  function applySize(w, h) {
+    const el = document.getElementById("canvas");
+    el.style.width = w + "px";
+    el.style.height = h + "px";
+  }
+
+  function imageUrl(expression, layer) {
+    return "/api/images/" + encodeURIComponent(expression) + "/" + encodeURIComponent(layer) + "?t=" + Date.now();
+  }
+
+  function loadImages(expression) {
+    if (expression === currentExpression) return;
+    currentExpression = expression;
+    LAYERS.forEach(layer => {
+      imgs[layer].src = imageUrl(expression, layer);
+    });
+  }
+
+  let _hideTimer = null;
+  function showLayer(layer) {
+    // Bring new layer to front and fade it in
+    LAYERS.forEach(l => { imgs[l].style.zIndex = l === layer ? "2" : "1"; });
+    imgs[layer].classList.add("visible");
+    // After the crossfade completes, hide the layers underneath
+    if (_hideTimer) clearTimeout(_hideTimer);
+    _hideTimer = setTimeout(() => {
+      LAYERS.forEach(l => { if (l !== layer) imgs[l].classList.remove("visible"); });
+    }, 120);
+  }
+
+  function applyState(state) {
+    currentState = state;
+    // Pick the best available layer — fall back to idle
+    const preferred = state === "idle" ? ["idle", "idle_blink"] : [state, "idle", "talking"];
+    let chosen = state; // default — show it even if not loaded yet
+    for (const candidate of preferred) {
+      if (imgs[candidate] && imgs[candidate].naturalWidth > 0) {
+        chosen = candidate;
+        break;
+      }
+    }
+    showLayer(chosen);
+  }
+
+  function applyFullState(data) {
+    // Apply chroma + size
+    const chroma = chromaParam || data.chroma_color;
+    if (chroma) applyChroma(chroma);
+    const w = wParam || data.canvas_width;
+    const h = hParam || data.canvas_height;
+    if (w && h) applySize(w, h);
+
+    // Load images first, then set state
+    const expression = data.expression || "default";
+    if (expression !== currentExpression) {
+      currentExpression = expression;
+      let loaded = 0;
+      LAYERS.forEach(layer => {
+        const img = imgs[layer];
+        img.onload = () => {
+          loaded++;
+          // Once at least the primary layer is loaded, apply state
+          if (loaded === 1) applyState(currentState || data.state || "idle");
+        };
+        img.onerror = () => { loaded++; };
+        img.src = imageUrl(expression, layer);
+      });
+    }
+
+    // Apply state immediately in case images were already loaded
+    applyState(data.state || "idle");
+    initialized = true;
+  }
+
+  // Fetch full state and apply
+  function refresh() {
+    fetch("/api/state?" + Date.now())
+      .then(r => r.json())
+      .then(data => applyFullState(data))
+      .catch(() => {});
+  }
+
+  // Initial load
+  refresh();
+
+  // SSE for real-time state changes
+  function connectSSE() {
+    const es = new EventSource("/events");
+    es.onmessage = (evt) => {
+      try {
+        const data = JSON.parse(evt.data);
+        if (data.state && initialized) applyState(data.state);
+      } catch (_) {}
+    };
+    es.onerror = () => {
+      es.close();
+      setTimeout(connectSSE, 3000);
+    };
+  }
+  connectSSE();
+
+  // Fallback poll every 2s to stay in sync
+  setInterval(refresh, 2000);
+</script>
+</body>
+</html>

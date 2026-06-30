@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blueprint Alert Overlay</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 1920px;
+    height: 1080px;
+    background: transparent;
+    overflow: hidden;
+  }
+
+  #wrap {
+    position: fixed;
+    top: 30px;
+    left: 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  @keyframes drawIn {
+    from { opacity: 0; transform: scale(0.92) translateY(-12px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+
+  @keyframes drawOut {
+    from { opacity: 1; transform: translateY(0); }
+    to   { opacity: 0; transform: translateY(-10px); }
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0; }
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 0 6px var(--accent); }
+    50%       { box-shadow: 0 0 12px var(--accent), 0 0 20px var(--accent); }
+  }
+
+  .drawing {
+    width: 440px;
+    position: relative;
+    opacity: 0;
+    transform: scale(0.92) translateY(-12px);
+    background:
+      repeating-linear-gradient(rgba(100,160,255,0.08) 1px, transparent 1px),
+      repeating-linear-gradient(90deg, rgba(100,160,255,0.08) 1px, transparent 1px),
+      rgba(10, 20, 45, 0.92);
+    background-size: 20px 20px, 20px 20px, auto;
+    border: 1px solid rgba(100, 180, 255, 0.4);
+    box-shadow:
+      0 0 0 1px rgba(0,0,0,0.8),
+      0 0 30px rgba(100,160,255,0.15),
+      inset 0 0 30px rgba(10,20,45,0.5);
+  }
+
+  .drawing.show {
+    animation: drawIn 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+  }
+
+  .drawing.hide {
+    animation: drawOut 0.35s ease-in forwards;
+  }
+
+  /* Corner bracket decorations */
+  .corner {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+  }
+  .corner-tl { top: -1px; left: -1px; border-top: 2px solid var(--accent); border-left: 2px solid var(--accent); opacity: 0.7; }
+  .corner-tr { top: -1px; right: -1px; border-top: 2px solid var(--accent); border-right: 2px solid var(--accent); opacity: 0.7; }
+  .corner-bl { bottom: -1px; left: -1px; border-bottom: 2px solid var(--accent); border-left: 2px solid var(--accent); opacity: 0.7; }
+  .corner-br { bottom: -1px; right: -1px; border-bottom: 2px solid var(--accent); border-right: 2px solid var(--accent); opacity: 0.7; }
+
+  .title-bar {
+    background: rgba(100, 160, 255, 0.12);
+    border-bottom: 1px solid rgba(100, 180, 255, 0.2);
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .doc-id {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 10px;
+    color: rgba(120, 180, 255, 0.5);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+
+  .doc-type {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+    color: rgba(100, 180, 255, 0.7);
+  }
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    margin-left: auto;
+    flex-shrink: 0;
+    animation: blink 1s step-end infinite;
+  }
+
+  .blueprint-body {
+    padding: 14px 16px;
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+
+  .field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .field-label {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 8px;
+    color: rgba(100, 180, 255, 0.5);
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+  }
+
+  .field-value {
+    font-family: 'Courier New', Courier, monospace;
+    color: #c8e4ff;
+  }
+
+  .field-value.name-val {
+    font-size: 18px;
+    font-weight: bold;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .field-value.msg-val {
+    font-size: 12px;
+    color: rgba(200, 228, 255, 0.75);
+    word-break: break-word;
+    white-space: normal;
+  }
+
+  .field-value.type-val {
+    font-size: 11px;
+    letter-spacing: 0.05em;
+  }
+
+  .schematic {
+    flex-shrink: 0;
+    width: 56px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(100, 160, 255, 0.08);
+    border: 1px solid rgba(100, 180, 255, 0.25);
+    font-size: 28px;
+    position: relative;
+  }
+
+  /* Inner corner ticks on schematic box */
+  .schematic::before,
+  .schematic::after {
+    content: '';
+    position: absolute;
+    width: 6px;
+    height: 6px;
+  }
+  .schematic::before {
+    top: -1px; left: -1px;
+    border-top: 1px solid rgba(100,180,255,0.6);
+    border-left: 1px solid rgba(100,180,255,0.6);
+  }
+  .schematic::after {
+    bottom: -1px; right: -1px;
+    border-bottom: 1px solid rgba(100,180,255,0.6);
+    border-right: 1px solid rgba(100,180,255,0.6);
+  }
+
+  .measurement-bar {
+    height: 3px;
+    background: rgba(100, 180, 255, 0.08);
+    overflow: hidden;
+  }
+
+  .measurement-fill {
+    height: 100%;
+    width: 100%;
+    transform-origin: left center;
+    transform: scaleX(1);
+    opacity: 0.7;
+  }
+</style>
+</head>
+<body>
+<div id="wrap"></div>
+
+<script>
+  const ALERT_TYPE = '__ALERT_TYPE__';
+  const ACCENT = '#' + (new URLSearchParams(location.search).get('accent') || '4fc3f7');
+
+  const TYPE_LABELS = {
+    follower:   'FOLLOWER ALERT',
+    subscriber: 'SUBSCRIBER',
+    gift_sub:   'GIFT SUB',
+    bits:       'BITS CHEER',
+    raid:       'RAID ALERT',
+    donation:   'DONATION'
+  };
+
+  const DOC_IDS = {
+    follower:   'DOC-FLW',
+    subscriber: 'DOC-SUB',
+    gift_sub:   'DOC-GSB',
+    bits:       'DOC-BIT',
+    raid:       'DOC-RID',
+    donation:   'DOC-DON'
+  };
+
+  const ICONS = {
+    follower:   '👤',
+    subscriber: '⭐',
+    gift_sub:   '🎁',
+    bits:       '💎',
+    raid:       '⚔️',
+    donation:   '💰'
+  };
+
+  function esc(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function typeText(el, text, msPerChar) {
+    el.textContent = '';
+    let i = 0;
+    const interval = setInterval(() => {
+      el.textContent += text[i];
+      i++;
+      if (i >= text.length) clearInterval(interval);
+    }, msPerChar);
+  }
+
+  function showAlert(d) {
+    const wrap = document.getElementById('wrap');
+    const type = d.type || 'follower';
+    const label = TYPE_LABELS[type] || type.toUpperCase().replace(/_/g, ' ');
+    const docId = DOC_IDS[type] || 'DOC-ALT';
+    const icon  = ICONS[type] || '📡';
+    const duration = d.duration || 5000;
+    const name = d.name || 'UNKNOWN';
+    const message = d.message || '';
+
+    const plate = document.createElement('div');
+    plate.className = 'drawing';
+    plate.style.setProperty('--accent', ACCENT);
+
+    plate.innerHTML = `
+      <span class="corner corner-tl"></span>
+      <span class="corner corner-tr"></span>
+      <span class="corner corner-bl"></span>
+      <span class="corner corner-br"></span>
+
+      <div class="title-bar">
+        <span class="doc-id">${esc(docId)}</span>
+        <span class="doc-type" style="color:${ACCENT}">${esc(label)}</span>
+        <span class="status-dot" style="background:${ACCENT}; box-shadow:0 0 6px ${ACCENT}"></span>
+      </div>
+
+      <div class="blueprint-body">
+        <div class="field-group">
+          <div class="field">
+            <span class="field-label">SUBJECT</span>
+            <span class="field-value name-val"></span>
+          </div>
+          ${message ? `
+          <div class="field">
+            <span class="field-label">MESSAGE</span>
+            <span class="field-value msg-val">${esc(message)}</span>
+          </div>` : ''}
+          <div class="field">
+            <span class="field-label">TYPE</span>
+            <span class="field-value type-val" style="color:${ACCENT}">${esc(label)}</span>
+          </div>
+        </div>
+        <div class="schematic">${icon}</div>
+      </div>
+
+      <div class="measurement-bar">
+        <div class="measurement-fill" style="background:${ACCENT}"></div>
+      </div>
+    `;
+
+    wrap.appendChild(plate);
+
+    // Entrance animation
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        plate.classList.add('show');
+      });
+    });
+
+    // Typing effect for name
+    const nameEl = plate.querySelector('.name-val');
+    setTimeout(() => {
+      typeText(nameEl, name, 40);
+    }, 200);
+
+    // Progress bar shrink
+    const fill = plate.querySelector('.measurement-fill');
+    fill.style.transition = `transform ${duration}ms linear`;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        fill.style.transform = 'scaleX(0)';
+      });
+    });
+
+    // Exit
+    setTimeout(() => {
+      plate.classList.remove('show');
+      plate.classList.add('hide');
+      setTimeout(() => {
+        if (plate.parentNode) plate.parentNode.removeChild(plate);
+      }, 450);
+    }, duration);
+  }
+
+  async function poll() {
+    while (true) {
+      try {
+        const r = await fetch('/poll/' + ALERT_TYPE);
+        const data = await r.json();
+        if (data.type === 'style_change') {
+          window.location.href = '/overlay/' + ALERT_TYPE + '?_=' + Date.now();
+          return;
+        }
+        if (data.type !== 'ping') showAlert(data);
+      } catch (e) {
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    }
+  }
+
+  poll();
+</script>
+</body>
+</html>

@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Now Playing — Equalizer</title>
+  <link rel="stylesheet" href="/static/now_playing.css">
+</head>
+<body class="layout-equalizer">
+<div id="now-playing-root" class="eq-overlay">
+  <div class="eq-bars" id="eq-bars-left" aria-hidden="true">
+    <div class="eq-bar" style="--d:0.0s;--h:70%"></div>
+    <div class="eq-bar" style="--d:0.3s;--h:45%"></div>
+    <div class="eq-bar" style="--d:0.6s;--h:85%"></div>
+    <div class="eq-bar" style="--d:0.2s;--h:55%"></div>
+    <div class="eq-bar" style="--d:0.5s;--h:90%"></div>
+    <div class="eq-bar" style="--d:0.1s;--h:40%"></div>
+    <div class="eq-bar" style="--d:0.4s;--h:75%"></div>
+  </div>
+
+  <div class="eq-body">
+    <div class="eq-label">NOW PLAYING</div>
+    <div class="eq-title-wrap">
+      <span class="eq-title" id="now-title">Loading…</span>
+    </div>
+    <div class="eq-artist-wrap">
+      <span class="eq-artist" id="now-artist"></span>
+    </div>
+    <div class="eq-progress-row">
+      <span class="eq-time" id="now-position">0:00</span>
+      <div class="eq-progress-wrap">
+        <div class="eq-progress-fill" id="now-progress-fill" style="width:0%"></div>
+      </div>
+      <span class="eq-time" id="now-duration">0:00</span>
+    </div>
+  </div>
+
+  <div class="eq-bars eq-bars-right" id="eq-bars-right" aria-hidden="true">
+    <div class="eq-bar" style="--d:0.15s;--h:60%"></div>
+    <div class="eq-bar" style="--d:0.45s;--h:80%"></div>
+    <div class="eq-bar" style="--d:0.0s;--h:35%"></div>
+    <div class="eq-bar" style="--d:0.25s;--h:95%"></div>
+    <div class="eq-bar" style="--d:0.55s;--h:50%"></div>
+    <div class="eq-bar" style="--d:0.35s;--h:70%"></div>
+    <div class="eq-bar" style="--d:0.1s;--h:85%"></div>
+  </div>
+</div>
+
+<script src="/static/now_playing.js"></script>
+<script>
+  startNowPlaying({
+    interval: 500,
+    onUpdate: function(s) {
+      var isStopped = s.status === 'stopped';
+      // Pause bar animation when stopped
+      document.querySelectorAll('.eq-bar').forEach(function(b) {
+        b.style.animationPlayState = isStopped ? 'paused' : 'running';
+      });
+    }
+  });
+</script>
+</body>
+</html>

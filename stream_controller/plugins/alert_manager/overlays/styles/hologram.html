@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: transparent; overflow: hidden; font-family: 'Courier New', Courier, monospace; }
+
+#wrap {
+  position: fixed;
+  right: 60px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.card {
+  position: relative;
+  width: 400px;
+  background: rgba(0, 20, 30, 0.85);
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 18px 22px;
+  opacity: 0;
+  transform: translateX(80px) skewX(-2deg);
+  overflow: hidden;
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent), 0 0 20px var(--accent);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0px,
+    transparent 3px,
+    rgba(0,212,255,0.04) 3px,
+    rgba(0,212,255,0.04) 4px
+  );
+  pointer-events: none;
+  z-index: 1;
+}
+
+@keyframes holoIn {
+  0%   { opacity: 0; transform: translateX(80px) skewX(-2deg); filter: brightness(3); }
+  15%  { filter: brightness(1.5); }
+  100% { opacity: 1; transform: translateX(0) skewX(-2deg); filter: brightness(1); }
+}
+
+@keyframes holoOut {
+  from { opacity: 1; transform: translateX(0) skewX(-2deg); }
+  to   { opacity: 0; transform: translateX(80px) skewX(2deg); }
+}
+
+@keyframes flicker {
+  0%   { opacity: 1; }
+  50%  { opacity: 0.7; }
+  100% { opacity: 1; }
+}
+
+.card.show {
+  animation: holoIn 0.45s ease-out forwards, flicker 0.15s step-end 3;
+}
+
+.card.hide {
+  animation: holoOut 0.35s ease-in forwards;
+}
+
+.card-inner {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.card-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.type-label {
+  font-size: 9px;
+  color: var(--accent);
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  font-family: monospace;
+  opacity: 0.9;
+}
+
+.name {
+  font-size: 18px;
+  font-weight: 700;
+  color: #fff;
+  font-family: monospace;
+  text-shadow: 0 0 10px var(--accent);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 4px;
+}
+
+.msg {
+  font-size: 12px;
+  color: rgba(200,230,240,0.7);
+  font-family: monospace;
+  margin-top: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.signal {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  flex-shrink: 0;
+  height: 18px;
+  align-self: center;
+}
+
+.signal-bar {
+  width: 4px;
+  background: var(--accent);
+  opacity: 0.8;
+  border-radius: 1px;
+}
+
+.signal-bar:nth-child(1) { height: 6px; }
+.signal-bar:nth-child(2) { height: 11px; }
+.signal-bar:nth-child(3) { height: 18px; }
+
+.progress-wrap {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(255,255,255,0.07);
+  z-index: 3;
+}
+
+.progress-bar {
+  height: 100%;
+  background: var(--accent);
+  width: 100%;
+  box-shadow: 0 0 6px var(--accent);
+  transition: width linear;
+}
+</style>
+</head>
+<body>
+<script>const ALERT_TYPE = '__ALERT_TYPE__';</script>
+<div id="wrap"></div>
+<script>
+const ACCENT = '#' + (new URLSearchParams(location.search).get('accent') || '00d4ff');
+
+document.documentElement.style.setProperty('--accent', ACCENT);
+
+const TYPE_LABELS = {
+  follower:   'New Follower',
+  subscriber: 'Subscriber',
+  gift_sub:   'Gift Sub',
+  bits:       'Bits Cheered',
+  raid:       'Raid',
+  donation:   'Donation'
+};
+
+const ICONS = {
+  follower:   '👤',
+  subscriber: '⭐',
+  gift_sub:   '🎁',
+  bits:       '💎',
+  raid:       '⚔️',
+  donation:   '💰'
+};
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function showAlert(d) {
+  const wrap = document.getElementById('wrap');
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.style.setProperty('--accent', ACCENT);
+
+  const label = TYPE_LABELS[d.type] || d.type;
+  const icon  = ICONS[d.type] || '📡';
+  const msg   = d.message ? `<div class="msg">${esc(d.message)}</div>` : '';
+
+  card.innerHTML = `
+    <div class="card-inner">
+      <div class="card-content">
+        <div class="type-label">${esc(label)}&nbsp;${icon}</div>
+        <div class="name">${esc(d.name)}</div>
+        ${msg}
+      </div>
+      <div class="signal">
+        <div class="signal-bar"></div>
+        <div class="signal-bar"></div>
+        <div class="signal-bar"></div>
+      </div>
+    </div>
+    <div class="progress-wrap"><div class="progress-bar"></div></div>
+  `;
+
+  wrap.appendChild(card);
+
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    card.classList.add('show');
+
+    const dur = Math.max(d.duration || 5000, 1200);
+    const bar = card.querySelector('.progress-bar');
+    bar.style.transition = `width ${dur}ms linear`;
+    requestAnimationFrame(() => { bar.style.width = '0%'; });
+
+    setTimeout(() => {
+      card.classList.add('hide');
+      card.classList.remove('show');
+      setTimeout(() => card.remove(), 450);
+    }, dur - 450);
+  }));
+}
+
+async function poll() {
+  while (true) {
+    try {
+      const r = await fetch('/poll/' + ALERT_TYPE);
+      const data = await r.json();
+      if (data.type === 'style_change') { window.location.href = '/overlay/' + ALERT_TYPE + '?_=' + Date.now(); return; }
+      if (data.type !== 'ping') showAlert(data);
+    } catch (e) {
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+}
+poll();
+</script>
+</body>
+</html>

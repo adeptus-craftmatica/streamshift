@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: transparent; overflow: hidden; font-family: Georgia, 'Times New Roman', serif; }
+
+#wrap {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.scroll {
+  position: relative;
+  width: 480px;
+  background: linear-gradient(160deg, #f4e4c0, #ede0b0, #e8d89a, #f0e2b8);
+  border: 2px solid #8b5e2a;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(100,60,20,0.3);
+  opacity: 0;
+  transform: scaleY(0.05);
+  transform-origin: center center;
+  clip-path: inset(50% 0);
+}
+
+@keyframes unroll {
+  from { opacity: 0; transform: scaleY(0.05); clip-path: inset(50% 0); }
+  to   { opacity: 1; transform: scaleY(1);    clip-path: inset(0% 0); }
+}
+
+@keyframes rollUp {
+  from { opacity: 1; transform: scaleY(1);    clip-path: inset(0% 0); }
+  to   { opacity: 0; transform: scaleY(0.05); clip-path: inset(50% 0); }
+}
+
+.scroll.show {
+  animation: unroll 0.65s cubic-bezier(0.34,1.56,0.64,1) forwards;
+}
+
+.scroll.hide {
+  animation: rollUp 0.45s ease-in forwards;
+}
+
+.scroll-rod {
+  height: 14px;
+  background: linear-gradient(90deg, #6b3a1f, #a0582a, #c4763e, #a0582a, #6b3a1f);
+  border-radius: 2px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,200,120,0.3);
+}
+
+.scroll-body {
+  position: relative;
+  padding: 20px 32px;
+}
+
+.scroll-body::before {
+  content: '✦';
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  color: #8b5e2a;
+  opacity: 0.4;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.scroll-body::after {
+  content: '✦';
+  position: absolute;
+  bottom: 8px;
+  right: 10px;
+  color: #8b5e2a;
+  opacity: 0.4;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.type-label {
+  font-size: 10px;
+  color: #6b3a1f;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  font-style: italic;
+  font-family: Georgia, serif;
+}
+
+.scroll-rule {
+  border: none;
+  border-top: 1px solid rgba(139,94,42,0.4);
+  margin: 4px 0;
+}
+
+.alert-icon {
+  font-size: 28px;
+  line-height: 1;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.name {
+  font-size: 22px;
+  font-weight: 700;
+  color: #1a0a00;
+  font-family: Georgia, 'Times New Roman', serif;
+  text-shadow: 1px 1px 0 rgba(255,255,255,0.3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.msg {
+  font-size: 14px;
+  color: #3a2010;
+  font-family: Georgia, serif;
+  font-style: italic;
+  margin-top: 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.progress-wrap {
+  position: relative;
+  height: 2px;
+  background: rgba(139,94,42,0.15);
+  margin: 0 32px 10px;
+}
+
+.progress-bar {
+  height: 100%;
+  width: 100%;
+  background: var(--accent);
+  transition: width linear;
+}
+</style>
+</head>
+<body>
+<script>const ALERT_TYPE = '__ALERT_TYPE__';</script>
+<div id="wrap"></div>
+<script>
+const ACCENT = '#' + (new URLSearchParams(location.search).get('accent') || 'c4763e');
+
+document.documentElement.style.setProperty('--accent', ACCENT);
+
+const TYPE_LABELS = {
+  follower:   'New Follower',
+  subscriber: 'New Subscriber',
+  gift_sub:   'Gift Sub',
+  bits:       'Bits Cheered',
+  raid:       'Raid Incoming',
+  donation:   'Donation'
+};
+
+const ICONS = {
+  follower:   '📜',
+  subscriber: '⭐',
+  gift_sub:   '🎁',
+  bits:       '💎',
+  raid:       '⚔️',
+  donation:   '💰'
+};
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function showAlert(d) {
+  const wrap = document.getElementById('wrap');
+  const scroll = document.createElement('div');
+  scroll.className = 'scroll';
+  scroll.style.setProperty('--accent', ACCENT);
+
+  const label = TYPE_LABELS[d.type] || d.type;
+  const icon  = ICONS[d.type] || '📜';
+  const msg   = d.message ? `<div class="msg">${esc(d.message)}</div>` : '';
+
+  scroll.innerHTML = `
+    <div class="scroll-rod"></div>
+    <div class="scroll-body">
+      <div class="type-label">${esc(label)}</div>
+      <hr class="scroll-rule">
+      <span class="alert-icon">${icon}</span>
+      <div class="name">${esc(d.name)}</div>
+      ${msg}
+    </div>
+    <div class="progress-wrap"><div class="progress-bar"></div></div>
+    <div class="scroll-rod"></div>
+  `;
+
+  wrap.appendChild(scroll);
+
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    scroll.classList.add('show');
+
+    const dur = Math.max(d.duration || 5000, 1200);
+    const bar = scroll.querySelector('.progress-bar');
+    bar.style.transition = `width ${dur}ms linear`;
+    requestAnimationFrame(() => { bar.style.width = '0%'; });
+
+    setTimeout(() => {
+      scroll.classList.add('hide');
+      scroll.classList.remove('show');
+      setTimeout(() => scroll.remove(), 550);
+    }, dur - 550);
+  }));
+}
+
+async function poll() {
+  while (true) {
+    try {
+      const r = await fetch('/poll/' + ALERT_TYPE);
+      const data = await r.json();
+      if (data.type === 'style_change') { window.location.href = '/overlay/' + ALERT_TYPE + '?_=' + Date.now(); return; }
+      if (data.type !== 'ping') showAlert(data);
+    } catch (e) {
+      await new Promise(r => setTimeout(r, 2000));
+    }
+  }
+}
+poll();
+</script>
+</body>
+</html>

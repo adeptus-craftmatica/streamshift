@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pixel Alert Overlay</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    width: 1920px;
+    height: 1080px;
+    background: transparent;
+    overflow: hidden;
+  }
+
+  #wrap {
+    position: fixed;
+    bottom: 30px;
+    left: 30px;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 8px;
+    align-items: flex-start;
+  }
+
+  @keyframes pixelIn {
+    from { opacity: 0; transform: translateX(-110%); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  @keyframes pixelOut {
+    from { opacity: 1; transform: translateX(0); }
+    to   { opacity: 0; transform: translateX(110%); }
+  }
+
+  @keyframes barShrink {
+    from { transform: scaleX(1); }
+    to   { transform: scaleX(0); }
+  }
+
+  .chip {
+    opacity: 0;
+    transform: translateX(-110%);
+    font-family: 'Courier New', Courier, monospace;
+    border-radius: 0;
+    min-width: 380px;
+    max-width: 460px;
+    background: #0a0a0a;
+    position: relative;
+    image-rendering: pixelated;
+  }
+
+  .chip.show {
+    animation: pixelIn 0.35s steps(8, end) forwards;
+  }
+
+  .chip.hide {
+    animation: pixelOut 0.25s steps(6, end) forwards;
+  }
+
+  .header-bar {
+    width: 100%;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    gap: 8px;
+  }
+
+  .game-icon {
+    font-size: 14px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .type-text {
+    font-size: 11px;
+    font-weight: bold;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #000;
+    font-family: 'Courier New', Courier, monospace;
+    flex: 1;
+  }
+
+  .score {
+    font-family: 'Courier New', Courier, monospace;
+    font-weight: bold;
+    font-size: 11px;
+    color: #000;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  .body {
+    padding: 10px 12px;
+  }
+
+  .name-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .arrow-indicator {
+    font-weight: bold;
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+
+  .name {
+    font-size: 16px;
+    font-weight: bold;
+    font-family: 'Courier New', Courier, monospace;
+    text-transform: uppercase;
+    word-break: break-all;
+  }
+
+  .msg-row {
+    margin-top: 4px;
+  }
+
+  .msg {
+    font-size: 12px;
+    color: rgba(180, 220, 180, 0.8);
+    font-family: 'Courier New', Courier, monospace;
+    word-break: break-word;
+  }
+
+  .progress-track {
+    width: 100%;
+    height: 4px;
+    background: #1a1a1a;
+    overflow: hidden;
+    margin-top: 8px;
+  }
+
+  .progress-fill {
+    height: 100%;
+    width: 100%;
+    transform-origin: left center;
+    transform: scaleX(1);
+  }
+</style>
+</head>
+<body>
+<div id="wrap"></div>
+
+<script>
+  const ALERT_TYPE = '__ALERT_TYPE__';
+  const ACCENT = '#' + (new URLSearchParams(location.search).get('accent') || '22dd44');
+
+  const TYPE_LABELS = {
+    follower:   'NEW FOLLOWER',
+    subscriber: 'SUBSCRIBED',
+    gift_sub:   'GIFT SUB',
+    bits:       'BITS CHEER',
+    raid:       'RAID',
+    donation:   'DONATION'
+  };
+
+  const SCORE_VALUES = {
+    follower:   '+1 UP',
+    subscriber: '+100 PTS',
+    gift_sub:   '+BONUS',
+    bits:       '+POWER',
+    raid:       '+SQUAD',
+    donation:   '+COINS'
+  };
+
+  const ICONS = {
+    follower:   '🕹️',
+    subscriber: '⭐',
+    gift_sub:   '🎁',
+    bits:       '💎',
+    raid:       '👾',
+    donation:   '🪙'
+  };
+
+  function esc(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function showAlert(d) {
+    const wrap = document.getElementById('wrap');
+    const type = d.type || 'follower';
+    const label = TYPE_LABELS[type] || type.toUpperCase();
+    const score = SCORE_VALUES[type] || '+???';
+    const icon = ICONS[type] || '🎮';
+    const duration = d.duration || 5000;
+
+    const chip = document.createElement('div');
+    chip.className = 'chip';
+    chip.style.boxShadow = `0 0 0 4px ${ACCENT}, 0 0 0 8px #0a0a0a, 0 0 0 12px ${ACCENT}`;
+    chip.innerHTML = `
+      <div class="header-bar" style="background:${ACCENT}">
+        <span class="game-icon">${icon}</span>
+        <span class="type-text">${esc(label)}</span>
+        <span class="score">${esc(score)}</span>
+      </div>
+      <div class="body">
+        <div class="name-row">
+          <span class="arrow-indicator" style="color:${ACCENT}">▶</span>
+          <span class="name" style="color:${ACCENT}">${esc(d.name || 'PLAYER')}</span>
+        </div>
+        ${d.message ? `<div class="msg-row"><span class="msg">${esc(d.message)}</span></div>` : ''}
+        <div class="progress-track" style="margin-top:${d.message ? '8px' : '8px'}">
+          <div class="progress-fill" style="background:${ACCENT}"></div>
+        </div>
+      </div>
+    `;
+
+    wrap.appendChild(chip);
+
+    // Trigger entrance
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        chip.classList.add('show');
+      });
+    });
+
+    // Animate progress bar
+    const fill = chip.querySelector('.progress-fill');
+    fill.style.transition = `transform ${duration}ms linear`;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        fill.style.transform = 'scaleX(0)';
+      });
+    });
+
+    // Exit after duration
+    setTimeout(() => {
+      chip.classList.remove('show');
+      chip.classList.add('hide');
+      setTimeout(() => {
+        if (chip.parentNode) chip.parentNode.removeChild(chip);
+      }, 350);
+    }, duration);
+  }
+
+  async function poll() {
+    while (true) {
+      try {
+        const r = await fetch('/poll/' + ALERT_TYPE);
+        const data = await r.json();
+        if (data.type === 'style_change') {
+          window.location.href = '/overlay/' + ALERT_TYPE + '?_=' + Date.now();
+          return;
+        }
+        if (data.type !== 'ping') showAlert(data);
+      } catch (e) {
+        await new Promise(r => setTimeout(r, 2000));
+      }
+    }
+  }
+
+  poll();
+</script>
+</body>
+</html>

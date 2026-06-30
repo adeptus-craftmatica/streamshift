@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Scene — Name</title>
+  <link rel="stylesheet" href="/static/scene.css">
+  <style>
+    :root{--accent:#7c3aed;--accent-rgb:124,58,237;--bg:#0d0d0f;--bg-rgb:13,13,15;--bg-opacity:0.92;--text-hi:#f0f0ff;--text-lo:rgba(240,240,255,0.55);}
+  </style>
+</head>
+<body>
+<div class="name-root">
+  <div class="name-pill s-bg" id="pill">
+    <div class="name-dot"></div>
+    <span class="name-text" id="name-text">Scene</span>
+  </div>
+</div>
+<script src="/static/scene.js"></script>
+<script>
+startScene({
+  onUpdate: function(s, changed) {
+    document.getElementById('name-text').textContent = s.current_scene || 'No Scene';
+    if (changed) {
+      var p = document.getElementById('pill');
+      p.classList.remove('changed');
+      void p.offsetWidth;
+      p.classList.add('changed');
+    }
+  }
+});
+</script>
+</body>
+</html>

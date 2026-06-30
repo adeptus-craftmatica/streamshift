@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Timer — Split Flap</title>
+  <link rel="stylesheet" href="/static/timer.css">
+</head>
+<body>
+<div class="split-root">
+  <div class="split-label" id="split-label">Timer</div>
+  <div class="split-digits" id="split-digits">
+    <!-- digits injected by JS -->
+  </div>
+</div>
+<script src="/static/timer.js"></script>
+<script>
+(function() {
+  var container = document.getElementById('split-digits');
+  var _prevStr  = '';
+
+  function buildDigits(str) {
+    // Build once, then update text only with flip animation
+    if (container.children.length === 0 || container.children.length !== countElements(str)) {
+      container.innerHTML = '';
+      for (var i = 0; i < str.length; i++) {
+        if (str[i] === ':') {
+          var sep = document.createElement('div');
+          sep.className = 'split-colon blink';
+          sep.textContent = ':';
+          container.appendChild(sep);
+        } else {
+          var box = document.createElement('div');
+          box.className = 'split-digit';
+          var num = document.createElement('span');
+          num.className = 'split-num';
+          num.textContent = str[i];
+          box.appendChild(num);
+          container.appendChild(box);
+        }
+      }
+    } else {
+      var els = container.querySelectorAll('.split-num');
+      var j = 0;
+      for (var i = 0; i < str.length; i++) {
+        if (str[i] !== ':') {
+          var el = els[j++];
+          if (el && el.textContent !== str[i]) {
+            el.textContent = str[i];
+            el.classList.remove('flip');
+            void el.offsetWidth;
+            el.classList.add('flip');
+          }
+        }
+      }
+    }
+  }
+
+  function countElements(str) {
+    return str.split('').reduce(function(n, c){ return n + (c === ':' ? 1 : 1); }, 0);
+  }
+
+  startTimer({
+    onRaf: function(pos) {
+      var str = fmtSecs(pos);
+      buildDigits(str);
+      _prevStr = str;
+    },
+    onUpdate: function(s) {
+      document.getElementById('split-label').textContent = s.label || 'Timer';
+    }
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,7 @@
+{
+  "name": "Scene Manager",
+  "version": "0.1.0",
+  "description": "Visual OBS scene switcher with real-time event updates and browser-source overlays.",
+  "author": "StreamShift",
+  "entry_point": "plugin:SceneManagerPlugin"
+}

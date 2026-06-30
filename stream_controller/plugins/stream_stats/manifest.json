@@ -1,0 +1,7 @@
+{
+  "name": "Stream Stats",
+  "version": "0.1.0",
+  "description": "Live Twitch stream statistics — followers, bits, subs, and historical session records.",
+  "author": "StreamShift",
+  "entry_point": "plugin:StreamStatsPlugin"
+}

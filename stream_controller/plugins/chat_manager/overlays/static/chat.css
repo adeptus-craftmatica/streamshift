@@ -1,0 +1,212 @@
+/* ── Chat Overlay Shared Styles ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --accent:      #7c3aed;
+  --bg:          #0d0d0f;
+  --bg-opacity:  0.90;
+  --text-hi:     #f0f0ff;
+  --text-lo:     rgba(240,240,255,0.60);
+  --font-size:   14px;
+  --radius:      10px;
+}
+
+body {
+  background: transparent;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  font-size: var(--font-size);
+  color: var(--text-hi);
+  overflow: hidden;
+}
+
+/* ── Feed Layout ────────────────────────────────────────────────────────── */
+.feed-root {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 12px;
+  gap: 6px;
+}
+
+.chat-msg {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: rgba(var(--bg-rgb, 13,13,15), var(--bg-opacity));
+  backdrop-filter: blur(8px);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  animation: slideIn 0.25s ease;
+  border-left: 3px solid var(--msg-color, var(--accent));
+  max-width: 100%;
+  word-break: break-word;
+  transition: opacity 0.5s;
+}
+
+.chat-msg.fade-out {
+  opacity: 0;
+}
+
+.chat-msg.deleted {
+  opacity: 0.3;
+  text-decoration: line-through;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.msg-badges {
+  flex-shrink: 0;
+  font-size: 0.85em;
+  line-height: 1.6;
+}
+
+.msg-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.msg-header {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.msg-name {
+  font-weight: 700;
+  font-size: 0.88em;
+  color: var(--msg-color, var(--accent));
+  white-space: nowrap;
+}
+
+.msg-time {
+  font-size: 0.72em;
+  color: var(--text-lo);
+}
+
+.msg-text {
+  font-size: 0.95em;
+  line-height: 1.45;
+  color: var(--text-hi);
+}
+
+/* ── Popup Layout ────────────────────────────────────────────────────────── */
+.popup-root {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  align-items: flex-end;
+  padding: 16px;
+}
+
+.popup-card {
+  width: 100%;
+  background: rgba(var(--bg-rgb, 13,13,15), var(--bg-opacity));
+  backdrop-filter: blur(12px);
+  border-radius: var(--radius);
+  border: 1.5px solid var(--accent);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  animation: popIn 0.3s cubic-bezier(.34,1.56,.64,1);
+}
+
+.popup-card.fade-out {
+  animation: popOut 0.4s ease forwards;
+}
+
+@keyframes popIn {
+  from { opacity: 0; transform: scale(0.92) translateY(12px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes popOut {
+  to { opacity: 0; transform: scale(0.94) translateY(8px); }
+}
+
+.popup-label {
+  font-size: 0.72em;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.popup-name {
+  font-size: 1.1em;
+  font-weight: 700;
+  color: var(--msg-color, var(--text-hi));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.popup-text {
+  font-size: 1em;
+  color: var(--text-hi);
+  line-height: 1.5;
+}
+
+/* ── Ticker Layout ───────────────────────────────────────────────────────── */
+.ticker-root {
+  width: 100%;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.ticker-bar {
+  width: 100%;
+  background: rgba(var(--bg-rgb, 13,13,15), var(--bg-opacity));
+  border-top: 2px solid var(--accent);
+  border-bottom: 2px solid var(--accent);
+  padding: 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.ticker-label {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.82em;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 14px;
+  flex-shrink: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+}
+
+.ticker-scroll {
+  display: inline-block;
+  white-space: nowrap;
+  animation: tickerScroll 30s linear infinite;
+  padding-left: 40px;
+}
+
+@keyframes tickerScroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
+.ticker-item {
+  display: inline;
+  padding: 0 32px;
+}
+
+.ticker-item-name {
+  font-weight: 700;
+  color: var(--msg-color, var(--accent));
+}

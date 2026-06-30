@@ -1,0 +1,826 @@
+/* StreamShift Now Playing — overlay styles */
+:root {
+  --accent:     #3f94bf;
+  --accent-rgb: 63,148,191;
+  --bg-color:   #0a121c;
+  --bg-opacity: 0.88;
+  --blur:       14px;
+  --font:       -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", sans-serif;
+  --text-hi:    #eef6ff;
+  --text-lo:    rgba(160, 210, 240, 0.65);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--font);
+  background: transparent;
+  color: var(--text-hi);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+.hidden { display: none !important; }
+
+@keyframes fadeUp   { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes fadeIn   { from { opacity: 0; } to { opacity: 1; } }
+@keyframes pulse    { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+@keyframes segGlow  { 0%,100% { filter: drop-shadow(0 0 3px var(--accent)); } 50% { filter: drop-shadow(0 0 7px var(--accent)); } }
+
+/* ── Shared progress bar ─────────────────────────────────────────────────── */
+.progress-wrap {
+  width: 100%;
+  height: 3px;
+  background: rgba(255,255,255,0.09);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  /* No CSS transition — rAF interpolation handles smoothness */
+  position: relative;
+}
+.progress-fill::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  top: -1px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   CARD overlay  —  /card
+   380 × auto, recommended OBS size: 400 × 110
+════════════════════════════════════════════════════════════════════════════ */
+body.layout-card {
+  padding: 16px;
+  display: flex;
+  align-items: flex-start;
+}
+
+.card-overlay {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px 16px 16px;
+  background: color-mix(in srgb, var(--bg-color) calc(var(--bg-opacity) * 100%), transparent);
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+  border: 1px solid rgba(var(--accent-rgb),0.22);
+  border-radius: 18px;
+  width: 400px;
+  animation: fadeUp 0.5s ease both;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+.card-art {
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  background: rgba(var(--accent-rgb),0.15);
+  border: 1px solid rgba(var(--accent-rgb),0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  flex-shrink: 0;
+  color: rgba(var(--accent-rgb),0.6);
+}
+
+.card-right { flex: 1; min-width: 0; }
+
+.card-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 4px;
+  overflow: hidden;
+}
+/* Clip container for marquee */
+.card-title-wrap {
+  flex: 1;
+  overflow: hidden;
+  min-width: 0;
+}
+.card-title {
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  letter-spacing: -0.2px;
+  color: var(--text-hi);
+  display: inline-block;
+  will-change: transform;
+}
+.card-time {
+  font-size: 11px;
+  color: var(--text-lo);
+  white-space: nowrap;
+  margin-left: 10px;
+  flex-shrink: 0;
+}
+
+/* Clip container for marquee */
+.card-artist-wrap {
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.card-artist {
+  font-size: 12px;
+  color: var(--text-lo);
+  white-space: nowrap;
+  display: inline-block;
+  will-change: transform;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   MINIMAL overlay  —  /minimal
+   Recommended OBS size: 360 × 50
+════════════════════════════════════════════════════════════════════════════ */
+body.layout-minimal {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+}
+
+.minimal-overlay {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 18px;
+  background: color-mix(in srgb, var(--bg-color) calc(var(--bg-opacity) * 100%), transparent);
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+  border-radius: 40px;
+  border: 1px solid rgba(var(--accent-rgb),0.2);
+  animation: fadeIn 0.5s ease both;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.28);
+}
+
+.minimal-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  flex-shrink: 0;
+  animation: pulse 1.5s ease-in-out infinite;
+  box-shadow: 0 0 6px var(--accent);
+}
+.minimal-dot.paused { animation: none; opacity: 0.3; box-shadow: none; }
+
+.minimal-sep {
+  width: 1px;
+  height: 12px;
+  background: rgba(255,255,255,0.15);
+  flex-shrink: 0;
+}
+
+/* Clip containers for minimal marquee */
+.minimal-artist-wrap {
+  overflow: hidden;
+  max-width: 120px;
+}
+.minimal-artist {
+  font-size: 12px;
+  color: var(--text-lo);
+  white-space: nowrap;
+  display: inline-block;
+  will-change: transform;
+}
+.minimal-title-wrap {
+  overflow: hidden;
+  max-width: 200px;
+}
+.minimal-title {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  display: inline-block;
+  will-change: transform;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   TICKER overlay  —  /ticker
+   Full width bottom bar. Recommended OBS: 1920 × 44
+════════════════════════════════════════════════════════════════════════════ */
+body.layout-ticker {
+  display: flex;
+  align-items: flex-end;
+  min-height: 100vh;
+}
+
+.ticker-overlay {
+  width: 100%;
+  padding: 10px 24px;
+  background: color-mix(in srgb, var(--bg-color) calc(var(--bg-opacity) * 100%), transparent);
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+  border-top: 1px solid rgba(var(--accent-rgb),0.18);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  animation: fadeIn 0.5s ease both;
+}
+
+.ticker-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.ticker-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+.ticker-dot.paused { animation: none; opacity: 0.3; }
+.ticker-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+
+.ticker-sep {
+  width: 1px;
+  height: 16px;
+  background: rgba(255,255,255,0.12);
+  flex-shrink: 0;
+}
+
+.ticker-content {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+.ticker-scroll {
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  color: var(--text-hi);
+  display: inline-block;
+  animation: tickerMove 20s linear infinite;
+}
+@keyframes tickerMove {
+  0%   { transform: translateX(100vw); }
+  100% { transform: translateX(-100%); }
+}
+
+.ticker-progress {
+  flex-shrink: 0;
+  width: 80px;
+}
+.ticker-time {
+  font-size: 10px;
+  color: var(--text-lo);
+  text-align: right;
+  margin-bottom: 3px;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   CIRCLE overlay  —  /circle
+   Recommended OBS size: 300 × 300
+════════════════════════════════════════════════════════════════════════════ */
+body.layout-circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 300px;
+  height: 300px;
+  padding: 0;
+}
+
+.circle-overlay {
+  position: relative;
+  width: 300px;
+  height: 300px;
+  animation: fadeIn 0.6s ease both;
+}
+
+.circle-overlay svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.seg-active {
+  animation: segGlow 1.8s ease-in-out infinite;
+}
+
+/* HTML text overlay inside the circle — enables marquee on title/artist */
+.circle-text-overlay {
+  position: absolute;
+  left: 50%;
+  top: 148px;
+  transform: translateX(-50%);
+  width: 156px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  pointer-events: none;
+}
+.circle-title-wrap  { overflow: hidden; width: 100%; text-align: center; }
+.circle-artist-wrap { overflow: hidden; width: 100%; text-align: center; }
+.circle-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-hi);
+  white-space: nowrap;
+  display: inline-block;
+  will-change: transform;
+  font-family: var(--font);
+}
+.circle-artist {
+  font-size: 11px;
+  color: var(--text-lo);
+  white-space: nowrap;
+  display: inline-block;
+  will-change: transform;
+  font-family: var(--font);
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   CORNER overlay  —  /corner
+   Recommended OBS size: 260 × 56
+════════════════════════════════════════════════════════════════════════════ */
+body.layout-corner {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 10px;
+  min-height: 56px;
+}
+
+.corner-overlay {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 16px 9px 12px;
+  background: color-mix(in srgb, var(--bg-color) calc(var(--bg-opacity) * 100%), transparent);
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+  border: 1px solid rgba(var(--accent-rgb),0.20);
+  border-radius: 40px;
+  animation: fadeIn 0.4s ease both;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.40);
+  max-width: 260px;
+}
+
+.corner-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 7px var(--accent);
+  animation: pulse 1.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+.corner-dot.paused { animation: none; opacity: 0.25; box-shadow: none; }
+
+.corner-body {
+  min-width: 0;
+  flex: 1;
+}
+.corner-label {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--accent);
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.corner-title-wrap { overflow: hidden; }
+.corner-title {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--text-hi);
+  display: inline-block;
+  will-change: transform;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   BANNER overlay  —  /banner
+   Recommended OBS size: 1920 × 72
+════════════════════════════════════════════════════════════════════════════ */
+body.layout-banner {
+  display: flex;
+  align-items: flex-start;
+  min-height: 72px;
+}
+
+.banner-overlay {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: color-mix(in srgb, var(--bg-color) calc(var(--bg-opacity) * 100%), transparent);
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+  border-bottom: 1px solid rgba(var(--accent-rgb),0.18);
+  animation: fadeIn 0.5s ease both;
+  overflow: hidden;
+  position: relative;
+}
+
+/* Accent strip on the far left */
+.banner-accent {
+  width: 4px;
+  align-self: stretch;
+  background: var(--accent);
+  box-shadow: 2px 0 12px rgba(var(--accent-rgb),0.45);
+  flex-shrink: 0;
+}
+
+/* Art square */
+.banner-art {
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  color: rgba(var(--accent-rgb),0.5);
+  background: rgba(var(--accent-rgb),0.08);
+  border-right: 1px solid rgba(var(--accent-rgb),0.12);
+  flex-shrink: 0;
+}
+
+/* Centre text block */
+.banner-body {
+  flex: 1;
+  min-width: 0;
+  padding: 0 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  height: 72px;
+}
+
+.banner-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.8px;
+  color: var(--accent);
+  text-transform: uppercase;
+}
+.banner-title-wrap  { overflow: hidden; }
+.banner-artist-wrap { overflow: hidden; }
+.banner-title {
+  font-size: 17px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--text-hi);
+  display: inline-block;
+  will-change: transform;
+  letter-spacing: -0.3px;
+}
+.banner-artist {
+  font-size: 12px;
+  color: var(--text-lo);
+  white-space: nowrap;
+  display: inline-block;
+  will-change: transform;
+}
+
+/* Right time + dot column */
+.banner-right {
+  flex-shrink: 0;
+  padding: 0 20px 0 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 6px;
+  height: 72px;
+}
+.banner-time {
+  font-size: 11px;
+  color: var(--text-lo);
+  white-space: nowrap;
+}
+.banner-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+.banner-dot.paused { animation: none; opacity: 0.25; box-shadow: none; }
+
+/* Progress bar runs along the very bottom edge of the banner */
+.banner-progress {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: rgba(255,255,255,0.07);
+}
+.banner-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  box-shadow: 0 0 8px rgba(var(--accent-rgb),0.6);
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   EQUALIZER overlay  —  /equalizer
+   Recommended OBS size: 520 × 90
+════════════════════════════════════════════════════════════════════════════ */
+@keyframes eqBounce {
+  0%,100% { height: 20%; }
+  50%      { height: var(--h, 70%); }
+}
+
+body.layout-equalizer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+}
+
+.eq-overlay {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+  background: color-mix(in srgb, var(--bg-color) calc(var(--bg-opacity) * 100%), transparent);
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+  border: 1px solid rgba(var(--accent-rgb),0.20);
+  border-radius: 16px;
+  width: 520px;
+  animation: fadeUp 0.5s ease both;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+.eq-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 44px;
+  flex-shrink: 0;
+}
+
+.eq-bar {
+  width: 4px;
+  border-radius: 2px 2px 0 0;
+  background: var(--accent);
+  animation: eqBounce calc(0.7s + var(--d, 0s)) ease-in-out infinite alternate;
+  box-shadow: 0 0 4px rgba(var(--accent-rgb),0.4);
+  opacity: 0.85;
+}
+
+.eq-bars-right .eq-bar {
+  opacity: 0.55;
+}
+
+.eq-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.eq-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  color: var(--accent);
+  text-transform: uppercase;
+  margin-bottom: 1px;
+}
+
+.eq-title-wrap { overflow: hidden; }
+.eq-title {
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--text-hi);
+  display: inline-block;
+  will-change: transform;
+}
+
+.eq-artist-wrap { overflow: hidden; }
+.eq-artist {
+  font-size: 11px;
+  color: var(--text-lo);
+  white-space: nowrap;
+  display: inline-block;
+  will-change: transform;
+}
+
+.eq-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+.eq-time {
+  font-size: 10px;
+  color: var(--text-lo);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.eq-progress-wrap {
+  flex: 1;
+  height: 3px;
+  background: rgba(255,255,255,0.09);
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+.eq-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  position: relative;
+  box-shadow: 0 0 6px rgba(var(--accent-rgb),0.5);
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   VINYL overlay  —  /vinyl
+   Recommended OBS size: 440 × 160
+════════════════════════════════════════════════════════════════════════════ */
+@keyframes spin { to { transform: rotate(360deg); } }
+
+body.layout-vinyl {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+}
+
+.vinyl-overlay {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 16px 24px 16px 16px;
+  background: color-mix(in srgb, var(--bg-color) calc(var(--bg-opacity) * 100%), transparent);
+  backdrop-filter: blur(var(--blur));
+  -webkit-backdrop-filter: blur(var(--blur));
+  border: 1px solid rgba(var(--accent-rgb),0.20);
+  border-radius: 20px;
+  width: 440px;
+  animation: fadeUp 0.5s ease both;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04);
+}
+
+.vinyl-record-wrap {
+  flex-shrink: 0;
+  width: 120px;
+  height: 120px;
+  position: relative;
+}
+
+.vinyl-record {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  position: relative;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.6), 0 0 0 1px rgba(var(--accent-rgb),0.15);
+}
+.vinyl-record.spinning {
+  animation: spin 3s linear infinite;
+}
+
+.vinyl-svg {
+  width: 120px;
+  height: 120px;
+  display: block;
+}
+
+.vinyl-label-bg { fill: #112030; }
+
+#vinyl-progress-ring {
+  stroke: var(--accent);
+  filter: drop-shadow(0 0 3px var(--accent));
+}
+
+.vinyl-label-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  /* counter-rotate so text stays upright while disc spins */
+}
+.vinyl-record.spinning .vinyl-label-text {
+  animation: spin 3s linear infinite reverse;
+}
+
+.vinyl-label-title {
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--text-hi);
+  text-align: center;
+  max-width: 52px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  line-height: 1.3;
+}
+.vinyl-label-artist {
+  font-size: 7px;
+  color: var(--text-lo);
+  text-align: center;
+  max-width: 52px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+/* Info panel */
+.vinyl-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.vinyl-status-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 2px;
+}
+.vinyl-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+  animation: pulse 1.5s ease-in-out infinite;
+  flex-shrink: 0;
+}
+.vinyl-dot.paused { animation: none; opacity: 0.25; box-shadow: none; }
+.vinyl-now-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+/* Clip wrappers for marquee */
+.vinyl-title-wrap  { overflow: hidden; }
+.vinyl-artist-wrap { overflow: hidden; margin-bottom: 4px; }
+
+.vinyl-info-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-hi);
+  white-space: nowrap;
+  letter-spacing: -0.3px;
+  display: inline-block;
+  will-change: transform;
+}
+.vinyl-info-artist {
+  font-size: 12px;
+  color: var(--text-lo);
+  white-space: nowrap;
+  display: inline-block;
+  will-change: transform;
+}
+
+.vinyl-time-row {
+  font-size: 11px;
+  color: var(--text-lo);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.vinyl-time-sep { opacity: 0.4; }
+
+.vinyl-progress-wrap {
+  width: 100%;
+  height: 3px;
+  background: rgba(255,255,255,0.09);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.vinyl-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  box-shadow: 0 0 6px rgba(var(--accent-rgb),0.5);
+}

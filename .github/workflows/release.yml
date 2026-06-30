@@ -1,0 +1,123 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            label: macOS
+            artifact: StreamShift.dmg
+          - os: windows-latest
+            label: Windows
+            artifact: StreamShift.zip
+          - os: ubuntu-latest
+            label: Linux
+            artifact: StreamShift.tar.gz
+
+    runs-on: ${{ matrix.os }}
+    name: Build (${{ matrix.label }})
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y \
+            libportaudio2 \
+            libpulse0 \
+            libasound2-dev \
+            libxcb-cursor0 \
+            libxcb-icccm4 \
+            libxcb-image0 \
+            libxcb-keysyms1 \
+            libxcb-render-util0 \
+            libxkbcommon-x11-0 \
+            libgl1 \
+            libegl1
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Install create-dmg (macOS)
+        if: runner.os == 'macOS'
+        run: brew install create-dmg
+
+      - name: Build with PyInstaller
+        run: pyinstaller StreamShift.spec --noconfirm
+
+      - name: Package (macOS → DMG)
+        if: runner.os == 'macOS'
+        run: |
+          create-dmg \
+            --volname "StreamShift" \
+            --window-pos 200 140 \
+            --window-size 660 400 \
+            --icon-size 120 \
+            --icon "StreamShift.app" 180 170 \
+            --hide-extension "StreamShift.app" \
+            --app-drop-link 480 170 \
+            --no-internet-enable \
+            dist/StreamShift.dmg \
+            dist/StreamShift.app || \
+          hdiutil create \
+            -volname StreamShift \
+            -srcfolder dist/StreamShift.app \
+            -ov -format UDZO \
+            dist/StreamShift.dmg
+
+      - name: Package (Windows → ZIP)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path dist\StreamShift\* -DestinationPath dist\StreamShift.zip
+
+      - name: Package (Linux → tar.gz)
+        if: runner.os == 'Linux'
+        run: tar -czf dist/StreamShift.tar.gz -C dist StreamShift
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: StreamShift-${{ matrix.label }}
+          path: dist/${{ matrix.artifact }}
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: StreamShift ${{ github.ref_name }}
+          generate_release_notes: true
+          files: |
+            artifacts/StreamShift-macOS/StreamShift.dmg
+            artifacts/StreamShift-Windows/StreamShift.zip
+            artifacts/StreamShift-Linux/StreamShift.tar.gz
