@@ -10,7 +10,7 @@ from PySide6.QtCore import QObject, Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QCheckBox, QFrame, QGroupBox, QHBoxLayout, QLabel, QLineEdit,
     QMessageBox, QProgressBar, QPushButton, QScrollArea, QSizePolicy,
-    QVBoxLayout, QWidget,
+    QTabWidget, QVBoxLayout, QWidget,
 )
 
 from stream_controller.constants import POLL_OAUTH_PORT
@@ -178,17 +178,37 @@ class PollPage(QWidget):
 
         root.addWidget(self._build_connection_card())
 
-        content = QHBoxLayout()
-        content.setSpacing(16)
-        content.addWidget(self._build_create_card(), 1)
-        content.addWidget(self._build_active_card(), 1)
-        root.addLayout(content, 1)
+        tabs = QTabWidget()
+        tabs.setDocumentMode(True)
+        tabs.addTab(self._build_new_poll_tab(), "New Poll")
+        tabs.addTab(self._build_past_polls_tab(), "Past Polls")
+        tabs.addTab(self._build_templates_tab(), "Templates")
+        root.addWidget(tabs, 1)
 
-        bottom = QHBoxLayout()
-        bottom.setSpacing(16)
-        bottom.addWidget(self._build_history_section(), 1)
-        bottom.addWidget(self._build_templates_section(), 1)
-        root.addLayout(bottom)
+    def _build_new_poll_tab(self) -> QWidget:
+        w = QWidget()
+        lay = QHBoxLayout(w)
+        lay.setContentsMargins(0, 12, 0, 0)
+        lay.setSpacing(16)
+        lay.addWidget(self._build_create_card(), 1)
+        lay.addWidget(self._build_active_card(), 1)
+        return w
+
+    def _build_past_polls_tab(self) -> QWidget:
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(0, 12, 0, 0)
+        lay.setSpacing(0)
+        lay.addWidget(self._build_history_section())
+        return w
+
+    def _build_templates_tab(self) -> QWidget:
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(0, 12, 0, 0)
+        lay.setSpacing(0)
+        lay.addWidget(self._build_templates_section())
+        return w
 
     def _build_connection_card(self) -> QGroupBox:
         grp = QGroupBox("Connection")
@@ -359,23 +379,23 @@ class PollPage(QWidget):
         self._active_poll_id: str = ""
         return self._active_grp
 
-    def _build_history_section(self) -> QGroupBox:
-        grp = QGroupBox("Recent Polls")
-        grp.setMaximumHeight(220)
-        outer = QVBoxLayout(grp)
-        outer.setContentsMargins(4, 4, 4, 4)
+    def _build_history_section(self) -> QWidget:
+        w = QWidget()
+        outer = QVBoxLayout(w)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(0)
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
         inner = QWidget()
         self._history_layout = QVBoxLayout(inner)
-        self._history_layout.setSpacing(6)
-        self._history_layout.setContentsMargins(4, 4, 4, 4)
+        self._history_layout.setSpacing(8)
+        self._history_layout.setContentsMargins(0, 0, 0, 0)
         self._history_layout.addStretch(1)
         scroll.setWidget(inner)
-        outer.addWidget(scroll)
-        return grp
+        outer.addWidget(scroll, 1)
+        return w
 
     # ── Choice management ─────────────────────────────────────────────────────
 
@@ -564,10 +584,12 @@ class PollPage(QWidget):
         frame = QFrame()
         frame.setObjectName("Card")
         lay = QHBoxLayout(frame)
-        lay.setContentsMargins(10, 6, 10, 6)
-        lay.setSpacing(10)
+        lay.setContentsMargins(14, 10, 14, 10)
+        lay.setSpacing(16)
 
+        # Title + winner summary
         info_lay = QVBoxLayout()
+        info_lay.setSpacing(4)
         title_lbl = QLabel(poll.title)
         title_lbl.setObjectName("CardTitle")
         info_lay.addWidget(title_lbl)
@@ -576,49 +598,80 @@ class PollPage(QWidget):
         total  = poll.total_votes
         if winner and total:
             pct = int(winner.total_votes * 100 / total)
-            detail = QLabel(f"Winner: {winner.title} ({pct}%)  ·  {total:,} votes")
+            summary = f"🏆 {winner.title} ({pct}%)  ·  {total:,} votes"
         else:
-            detail = QLabel(f"{total:,} votes  ·  No votes")
+            summary = f"{total:,} votes"
+        detail = QLabel(summary)
         detail.setObjectName("MetaText")
         info_lay.addWidget(detail)
         lay.addLayout(info_lay, 1)
+
+        # Choice breakdown
+        bars_lay = QVBoxLayout()
+        bars_lay.setSpacing(3)
+        winner_id = winner.choice_id if winner and total else ""
+        for choice in poll.choices:
+            row = QHBoxLayout()
+            row.setSpacing(6)
+            clbl = QLabel(choice.title)
+            clbl.setObjectName("MetaText")
+            clbl.setFixedWidth(120)
+            bar = QProgressBar()
+            bar.setRange(0, 100)
+            bar.setTextVisible(False)
+            bar.setFixedHeight(8)
+            pct_val = int(choice.total_votes * 100 / total) if total else 0
+            bar.setValue(pct_val)
+            leading = choice.choice_id == winner_id and total > 0
+            bar.setStyleSheet(
+                "QProgressBar{background:#1e2d3d;border-radius:4px;}"
+                f"QProgressBar::chunk{{background:{'#7c3aed' if leading else '#334155'};border-radius:4px;}}"
+            )
+            pct_lbl = QLabel(f"{pct_val}%")
+            pct_lbl.setObjectName("MetaText")
+            pct_lbl.setFixedWidth(38)
+            pct_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            row.addWidget(clbl)
+            row.addWidget(bar, 1)
+            row.addWidget(pct_lbl)
+            bars_lay.addLayout(row)
+        lay.addLayout(bars_lay, 2)
 
         rerun_btn = QPushButton("Re-run")
         rerun_btn.setObjectName("SecondaryButton")
         rerun_btn.setFixedWidth(72)
         choices = [c.title for c in poll.choices]
         rerun_btn.clicked.connect(lambda _=False, t=poll.title, c=choices: self._on_rerun(t, c))
-        lay.addWidget(rerun_btn)
+        lay.addWidget(rerun_btn, 0, Qt.AlignVCenter)
         return frame
 
     # ── Templates ─────────────────────────────────────────────────────────────
 
-    def _build_templates_section(self) -> QGroupBox:
-        grp = QGroupBox("Poll Templates")
-        grp.setMaximumHeight(220)
-        outer = QVBoxLayout(grp)
-        outer.setContentsMargins(4, 4, 4, 4)
-        outer.setSpacing(6)
+    def _build_templates_section(self) -> QWidget:
+        w = QWidget()
+        outer = QVBoxLayout(w)
+        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setSpacing(8)
 
-        # List of saved templates
+        add_btn = QPushButton("+ New Template")
+        add_btn.setObjectName("PrimaryButton")
+        add_btn.setFixedWidth(160)
+        add_btn.clicked.connect(self._show_template_editor)
+        outer.addWidget(add_btn, 0, Qt.AlignLeft)
+
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
         inner = QWidget()
         self._tpl_list_layout = QVBoxLayout(inner)
-        self._tpl_list_layout.setSpacing(4)
-        self._tpl_list_layout.setContentsMargins(4, 4, 4, 4)
+        self._tpl_list_layout.setSpacing(8)
+        self._tpl_list_layout.setContentsMargins(0, 0, 0, 0)
         self._tpl_list_layout.addStretch(1)
         scroll.setWidget(inner)
         outer.addWidget(scroll, 1)
 
-        add_btn = QPushButton("+ New Template")
-        add_btn.setObjectName("SecondaryButton")
-        add_btn.clicked.connect(self._show_template_editor)
-        outer.addWidget(add_btn)
-
         self._refresh_template_list()
-        return grp
+        return w
 
     def _refresh_template_list(self) -> None:
         while self._tpl_list_layout.count() > 1:
@@ -630,22 +683,33 @@ class PollPage(QWidget):
             row = QFrame()
             row.setObjectName("Card")
             lay = QHBoxLayout(row)
-            lay.setContentsMargins(8, 4, 8, 4)
-            lay.setSpacing(8)
+            lay.setContentsMargins(14, 10, 14, 10)
+            lay.setSpacing(12)
 
-            lbl = QLabel(f"<b>{tpl['name']}</b>  <span style='color:#64748b'>{tpl['title']}</span>")
-            lbl.setWordWrap(False)
-            lay.addWidget(lbl, 1)
+            info = QVBoxLayout()
+            info.setSpacing(2)
+            name_lbl = QLabel(tpl["name"])
+            name_lbl.setObjectName("CardTitle")
+            info.addWidget(name_lbl)
+            detail = QLabel(
+                f"{tpl['title']}  ·  "
+                + ", ".join(tpl["choices"])
+                + f"  ·  {tpl['duration'] // 60} min"
+            )
+            detail.setObjectName("MetaText")
+            detail.setWordWrap(True)
+            info.addWidget(detail)
+            lay.addLayout(info, 1)
 
             edit_btn = QPushButton("Edit")
             edit_btn.setObjectName("SecondaryButton")
-            edit_btn.setFixedWidth(44)
+            edit_btn.setFixedWidth(60)
             edit_btn.clicked.connect(lambda _=False, t=tpl: self._show_template_editor(t))
             lay.addWidget(edit_btn)
 
-            del_btn = QPushButton("✕")
+            del_btn = QPushButton("Delete")
             del_btn.setObjectName("SecondaryButton")
-            del_btn.setFixedWidth(28)
+            del_btn.setFixedWidth(60)
             del_btn.clicked.connect(lambda _=False, tid=tpl["id"]: self._delete_template(tid))
             lay.addWidget(del_btn)
 
