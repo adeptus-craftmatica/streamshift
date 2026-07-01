@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING
 
 logger = logging.getLogger(__name__)
 
+from stream_controller.constants import MUSIC_OVERLAY_PORT
+
 if TYPE_CHECKING:
     from stream_controller.plugins.music_manager.music_state import MusicState
 
@@ -19,7 +21,7 @@ except ImportError:
     logger.warning("flask not installed — overlays unavailable. Run: pip install flask")
 
 _OVERLAYS_DIR = Path(__file__).parent / "overlays"
-_DEFAULT_PORT = 47891
+_DEFAULT_PORT = MUSIC_OVERLAY_PORT
 
 
 class OverlayServer:

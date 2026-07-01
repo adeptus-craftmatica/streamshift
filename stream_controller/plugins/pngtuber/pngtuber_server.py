@@ -13,6 +13,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+from stream_controller.constants import PNGTUBER_PORT
+
 try:
     from flask import Flask, Response, send_from_directory
     _FLASK = True
@@ -20,7 +22,7 @@ except ImportError:
     _FLASK = False
 
 _OVERLAYS_DIR = Path(__file__).parent / "overlays"
-_PORT = 47897
+_PORT = PNGTUBER_PORT
 
 
 class PngTuberServer:

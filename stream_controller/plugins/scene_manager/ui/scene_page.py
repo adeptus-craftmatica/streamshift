@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 )
 
 from stream_controller.ui.theme import create_card
+from stream_controller.constants import SCENE_OVERLAY_PORT
 from stream_controller.plugins.scene_manager.scene_models import ConnectionStatus, SceneManagerState
 
 if TYPE_CHECKING:
@@ -595,7 +596,7 @@ class ScenePage(QWidget):
     # ── Overlay URL helpers ───────────────────────────────────────────────────
 
     def _overlay_url(self, path: str) -> str:
-        base = self._overlay_base_url or "http://localhost:47892"
+        base = self._overlay_base_url or f"http://localhost:{SCENE_OVERLAY_PORT}"
         params = []
 
         accent = self._accent_edit.text().strip().lstrip("#") if hasattr(self, "_accent_edit") else self._ov_accent

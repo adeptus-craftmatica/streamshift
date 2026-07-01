@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt, QTimer
+from stream_controller.constants import PNGTUBER_PORT
 from PySide6.QtGui import QColor, QPixmap
 from PySide6.QtWidgets import (
     QApplication, QCheckBox, QColorDialog, QComboBox, QDialog,
@@ -303,7 +304,7 @@ class PngTuberPage(QWidget):
         # ── OBS browser source URL ────────────────────────────────────────────
         url_group = QGroupBox("OBS Browser Source")
         url_lay = QHBoxLayout(url_group)
-        url_lbl = QLabel("http://localhost:47897/avatar")
+        url_lbl = QLabel(f"http://localhost:{PNGTUBER_PORT}/avatar")
         url_lbl.setObjectName("MetaText")
         url_lbl.setTextInteractionFlags(Qt.TextSelectableByMouse)
         copy_btn = QPushButton("Copy URL")
@@ -647,7 +648,7 @@ class PngTuberPage(QWidget):
     # ── URL ───────────────────────────────────────────────────────────────────
 
     def _copy_url(self) -> None:
-        QApplication.clipboard().setText("http://localhost:47897/avatar")
+        QApplication.clipboard().setText(f"http://localhost:{PNGTUBER_PORT}/avatar")
 
     # ── Mic helpers ───────────────────────────────────────────────────────────
 

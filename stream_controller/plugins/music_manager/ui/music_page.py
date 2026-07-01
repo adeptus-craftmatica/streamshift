@@ -7,12 +7,16 @@ from typing import TYPE_CHECKING
 
 from PySide6.QtCore import QMimeData, QSettings, Qt, Signal
 from PySide6.QtGui import QDrag, QFont, QGuiApplication
+from PySide6.QtWidgets import QCompleter
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QButtonGroup,
     QCheckBox,
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QFileDialog,
+    QFormLayout,
     QFrame,
     QGridLayout,
     QHBoxLayout,
@@ -25,8 +29,11 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSlider,
+    QSpinBox,
     QSplitter,
     QStackedWidget,
+    QTableWidget,
+    QTableWidgetItem,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -34,6 +41,8 @@ from PySide6.QtWidgets import (
 )
 
 from stream_controller.ui.theme import create_badge, create_card
+from stream_controller.constants import MUSIC_OVERLAY_PORT
+from stream_controller.ui.ui_utils import copy_with_feedback
 
 if TYPE_CHECKING:
     from stream_controller.plugins.music_manager.library_service import LibraryService
@@ -78,8 +87,51 @@ class MusicLibraryTree(QTreeWidget):
         self._album_font.setPointSize(12)
         self._album_font.setItalic(True)
 
-    def populate(self, tracks: list) -> None:
+    def populate(self, tracks: list, sort_mode: str = "artist") -> None:
+        """Populate the tree. sort_mode: 'artist' | 'title' | 'album' | 'duration'"""
         self.clear()
+        if sort_mode == "title":
+            self._populate_flat(sorted(tracks, key=lambda t: t.display_title.lower()))
+        elif sort_mode == "duration":
+            self._populate_flat(sorted(tracks, key=lambda t: t.duration))
+        elif sort_mode == "album":
+            self._populate_by_album(tracks)
+        else:
+            self._populate_by_artist(tracks)
+
+    _GROUP_FLAGS = Qt.ItemIsEnabled | Qt.ItemIsSelectable | Qt.ItemIsDragEnabled
+
+    def _populate_flat(self, tracks: list) -> None:
+        for track in tracks:
+            t_item = QTreeWidgetItem(self, [track.display_title, track.duration_str])
+            t_item.setData(0, Qt.UserRole, track.path)
+            t_item.setToolTip(0, str(track.path))
+
+    def _populate_by_album(self, tracks: list) -> None:
+        _NO_ALBUM = "\x00"
+        grouped: dict[str, list] = defaultdict(list)
+        for track in tracks:
+            grouped[track.album or _NO_ALBUM].append(track)
+
+        for album in sorted(grouped, key=lambda a: "" if a == _NO_ALBUM else a.lower()):
+            track_list = sorted(grouped[album], key=lambda t: (t.track_number or 999, t.display_title.lower()))
+            if album == _NO_ALBUM:
+                for track in track_list:
+                    t_item = QTreeWidgetItem(self, [track.display_title, track.duration_str])
+                    t_item.setData(0, Qt.UserRole, track.path)
+                    t_item.setToolTip(0, str(track.path))
+            else:
+                al_item = QTreeWidgetItem(self, [album, ""])
+                al_item.setData(0, Qt.UserRole, None)
+                al_item.setFont(0, self._album_font)
+                al_item.setFlags(self._GROUP_FLAGS)
+                al_item.setExpanded(True)
+                for track in track_list:
+                    t_item = QTreeWidgetItem(al_item, [track.display_title, track.duration_str])
+                    t_item.setData(0, Qt.UserRole, track.path)
+                    t_item.setToolTip(0, str(track.path))
+
+    def _populate_by_artist(self, tracks: list) -> None:
         _NO_ALBUM = ""
         grouped: dict[str, dict[str, list]] = defaultdict(lambda: defaultdict(list))
         for track in tracks:
@@ -90,23 +142,23 @@ class MusicLibraryTree(QTreeWidget):
             a_item.setData(0, Qt.UserRole, None)
             a_item.setFont(0, self._artist_font)
             a_item.setForeground(0, self.palette().text())
-            a_item.setFlags(Qt.ItemIsEnabled)
+            a_item.setFlags(self._GROUP_FLAGS)
 
             albums = grouped[artist]
             named_albums = {k: v for k, v in albums.items() if k}
             unnamed = albums.get(_NO_ALBUM, [])
 
-            for track in sorted(unnamed, key=lambda t: (t.track_number or 999, t.title.lower())):
+            for track in sorted(unnamed, key=lambda t: (t.track_number or 999, t.display_title.lower())):
                 t_item = QTreeWidgetItem(a_item, [track.display_title, track.duration_str])
                 t_item.setData(0, Qt.UserRole, track.path)
                 t_item.setToolTip(0, str(track.path))
 
             for album in sorted(named_albums, key=str.lower):
-                track_nodes = sorted(named_albums[album], key=lambda t: (t.track_number or 999, t.title.lower()))
+                track_nodes = sorted(named_albums[album], key=lambda t: (t.track_number or 999, t.display_title.lower()))
                 al_item = QTreeWidgetItem(a_item, [album, ""])
                 al_item.setData(0, Qt.UserRole, None)
                 al_item.setFont(0, self._album_font)
-                al_item.setFlags(Qt.ItemIsEnabled)
+                al_item.setFlags(self._GROUP_FLAGS)
                 for track in track_nodes:
                     t_item = QTreeWidgetItem(al_item, [track.display_title, track.duration_str])
                     t_item.setData(0, Qt.UserRole, track.path)
@@ -115,14 +167,29 @@ class MusicLibraryTree(QTreeWidget):
             a_item.setExpanded(True)
 
     def selected_paths(self) -> list[Path]:
+        """Return paths of selected track items only (no group nodes)."""
         return [
             item.data(0, Qt.UserRole)
             for item in self.selectedItems()
             if item.data(0, Qt.UserRole) is not None
         ]
 
+    def _collect_paths(self, item: QTreeWidgetItem, out: list, seen: set) -> None:
+        """Recursively collect track paths from item and all its descendants."""
+        path = item.data(0, Qt.UserRole)
+        if path is not None:
+            if path not in seen:
+                seen.add(path)
+                out.append(path)
+        else:
+            for i in range(item.childCount()):
+                self._collect_paths(item.child(i), out, seen)
+
     def startDrag(self, supported_actions: Qt.DropActions) -> None:  # type: ignore[override]
-        paths = self.selected_paths()
+        paths: list[Path] = []
+        seen: set = set()
+        for item in self.selectedItems():
+            self._collect_paths(item, paths, seen)
         if not paths:
             return
         mime = QMimeData()
@@ -196,6 +263,7 @@ class MusicPage(QWidget):
         self._seeking = False
         self._last_queue_len: int = 0
         self._last_queue_index: int = -1
+        self._sort_mode: str = "artist"
         # overlay customisation state
         self._ov_accent = "3f94bf"
         self._ov_text = "eef6ff"
@@ -494,7 +562,7 @@ class MusicPage(QWidget):
                 url = f"{self._overlay_base_url}{path}"
                 b = QPushButton(f"Copy {lbl} URL")
                 b.setObjectName("SecondaryButton")
-                b.clicked.connect(lambda _=False, u=url: QGuiApplication.clipboard().setText(u))
+                b.clicked.connect(lambda _=False, u=url, btn=b: copy_with_feedback(btn, u))
                 url_row.addWidget(b)
             url_row.addStretch(1)
             layout.addLayout(url_row)
@@ -560,23 +628,32 @@ class MusicPage(QWidget):
         action_row.addWidget(self._library_track_count)
         action_row.addStretch(1)
 
-        self._edit_artist_btn = QPushButton("Edit Artist")
-        self._edit_artist_btn.setObjectName("SecondaryButton")
-        self._edit_artist_btn.setToolTip("Edit the artist tag for all selected tracks")
-        self._edit_artist_btn.clicked.connect(self._edit_artist_for_selection)
+        sort_label = _field_label("Sort:")
+        sort_label.setObjectName("MetaText")
+        action_row.addWidget(sort_label)
+        self._sort_combo = QComboBox()
+        self._sort_combo.setObjectName("MusicPlaylistCombo")
+        for label, key in [
+            ("Artist / Album / Track #", "artist"),
+            ("Title A–Z", "title"),
+            ("Album", "album"),
+            ("Duration", "duration"),
+        ]:
+            self._sort_combo.addItem(label, key)
+        self._sort_combo.currentIndexChanged.connect(self._on_sort_changed)
+        action_row.addWidget(self._sort_combo)
 
-        self._edit_album_btn = QPushButton("Edit Album")
-        self._edit_album_btn.setObjectName("SecondaryButton")
-        self._edit_album_btn.setToolTip("Edit the album tag for all selected tracks")
-        self._edit_album_btn.clicked.connect(self._edit_album_for_selection)
+        edit_meta_btn = QPushButton("Edit Metadata")
+        edit_meta_btn.setObjectName("SecondaryButton")
+        edit_meta_btn.setToolTip("Edit tags for all selected tracks")
+        edit_meta_btn.clicked.connect(self._edit_metadata_for_selection)
 
         add_to_pl_btn = QPushButton("Add to Playlist")
         add_to_pl_btn.setObjectName("SecondaryButton")
         add_to_pl_btn.setToolTip("Add selected tracks to the active playlist")
         add_to_pl_btn.clicked.connect(self._add_selection_to_playlist)
 
-        action_row.addWidget(self._edit_artist_btn)
-        action_row.addWidget(self._edit_album_btn)
+        action_row.addWidget(edit_meta_btn)
         action_row.addWidget(add_to_pl_btn)
         body.addLayout(action_row)
 
@@ -963,7 +1040,7 @@ class MusicPage(QWidget):
         btn_row.setSpacing(8)
         copy_btn = QPushButton("Copy URL")
         copy_btn.setObjectName("PrimaryButton")
-        copy_btn.clicked.connect(lambda _=False, lbl=url_lbl: QGuiApplication.clipboard().setText(lbl.text()))
+        copy_btn.clicked.connect(lambda _=False, lbl=url_lbl, btn=copy_btn: copy_with_feedback(btn, lbl.text()))
         btn_row.addWidget(copy_btn)
         btn_row.addStretch(1)
         layout.addLayout(btn_row)
@@ -1456,7 +1533,7 @@ class MusicPage(QWidget):
 
     def _overlay_url(self, path: str) -> str:
         if not self._overlay_base_url:
-            return f"http://localhost:47891{path}  (overlay server not running)"
+            return f"http://localhost:{MUSIC_OVERLAY_PORT}{path}  (overlay server not running)"
         params = []
         accent = self._accent_edit.text().strip().lstrip("#") if hasattr(self, "_accent_edit") else self._ov_accent
         text   = self._text_edit.text().strip().lstrip("#")   if hasattr(self, "_text_edit")   else self._ov_text
@@ -1588,37 +1665,225 @@ class MusicPage(QWidget):
         menu.addSeparator()
         menu.addAction("➕  Add to Playlist", lambda: self._add_selection_to_playlist())
         menu.addSeparator()
-        menu.addAction("✏  Edit Metadata", lambda: self._edit_track_metadata(paths[0]))
+        menu.addAction("✏  Edit Metadata", lambda: self._edit_metadata_for_selection())
         menu.exec(self._library_tree.mapToGlobal(pos))
 
-    def _edit_track_metadata(self, path) -> None:
-        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QLineEdit
-        track = self._library.get_track(path)
-        if track is None:
+    def _edit_metadata_for_selection(self) -> None:
+        import re as _re
+
+        paths = self._library_tree.selected_paths()
+        if not paths:
+            return
+        tracks = [t for t in (self._library.get_track(p) for p in paths) if t is not None]
+        if not tracks:
             return
 
+        _COL_TN, _COL_TITLE, _COL_ALBUM, _COL_ARTIST = 0, 1, 2, 3
+        _LEADING_NUM = _re.compile(r"^(\d+)[.\-\s]+\s*")
+
         dlg = QDialog(self)
-        dlg.setWindowTitle("Edit Metadata")
-        dlg.setMinimumWidth(360)
+        dlg.setWindowTitle(f"Edit Metadata — {len(tracks)} track{'s' if len(tracks) != 1 else ''}")
+        dlg.setMinimumWidth(780)
+        dlg.resize(780, min(120 + len(tracks) * 32 + 160, 700))
         layout = QVBoxLayout(dlg)
-        layout.setSpacing(16)
-        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(10)
+        layout.setContentsMargins(20, 16, 20, 16)
 
-        form = QFormLayout()
-        form.setSpacing(10)
-        title_edit = QLineEdit(track.title or "")
-        title_edit.setObjectName("OverlayTextField")
-        artist_edit = QLineEdit(track.artist or "")
-        artist_edit.setObjectName("OverlayTextField")
-        form.addRow("Title", title_edit)
-        form.addRow("Artist", artist_edit)
-        layout.addLayout(form)
+        # ── Bulk-fill bar ────────────────────────────────────────────────────
+        bulk_frame = QFrame()
+        bulk_frame.setObjectName("MusicSettingsCard")
+        bulk_layout = QVBoxLayout(bulk_frame)
+        bulk_layout.setContentsMargins(12, 10, 12, 10)
+        bulk_layout.setSpacing(8)
 
-        note = QLabel("Changes are written to the file's tags immediately.")
+        bulk_title_lbl = QLabel("Apply to all rows:")
+        bulk_title_lbl.setObjectName("MusicFieldLabel")
+        bulk_layout.addWidget(bulk_title_lbl)
+
+        bulk_row1 = QHBoxLayout()
+        bulk_row1.setSpacing(8)
+
+        all_tracks = self._library.tracks
+        known_artists = sorted({t.artist for t in all_tracks if t.artist}, key=str.lower)
+        known_albums  = sorted({t.album  for t in all_tracks if t.album},  key=str.lower)
+
+        def _make_completer(words: list[str]) -> QCompleter:
+            c = QCompleter(words)
+            c.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+            c.setFilterMode(Qt.MatchFlag.MatchContains)
+            c.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
+            popup = c.popup()
+            popup.setObjectName("completerPopup")
+            popup.setStyleSheet("""
+                QAbstractItemView {
+                    background-color: #0f1a24;
+                    color: #c8dce8;
+                    border: 1px solid #1e3347;
+                    border-radius: 8px;
+                    padding: 4px;
+                    outline: none;
+                }
+                QAbstractItemView::item {
+                    min-height: 28px;
+                    padding: 5px 12px;
+                    margin: 1px 3px;
+                    border-radius: 6px;
+                    background-color: transparent;
+                    color: #a8c8e0;
+                }
+                QAbstractItemView::item:hover {
+                    background-color: rgba(63, 148, 191, 0.12);
+                    color: #ddeef8;
+                }
+                QAbstractItemView::item:selected {
+                    background-color: rgba(63, 148, 191, 0.20);
+                    color: #e8f4ff;
+                }
+            """)
+            return c
+
+        bulk_artist_edit = QLineEdit()
+        bulk_artist_edit.setObjectName("OverlayTextField")
+        bulk_artist_edit.setPlaceholderText("Artist — fills all rows")
+        bulk_artist_edit.setCompleter(_make_completer(known_artists))
+        fill_artist_btn = QPushButton("Fill Artist")
+        fill_artist_btn.setObjectName("SecondaryButton")
+
+        bulk_album_edit = QLineEdit()
+        bulk_album_edit.setObjectName("OverlayTextField")
+        bulk_album_edit.setPlaceholderText("Album — fills all rows")
+        bulk_album_edit.setCompleter(_make_completer(known_albums))
+        fill_album_btn = QPushButton("Fill Album")
+        fill_album_btn.setObjectName("SecondaryButton")
+
+        bulk_row1.addWidget(bulk_artist_edit, 1)
+        bulk_row1.addWidget(fill_artist_btn)
+        bulk_row1.addSpacing(12)
+        bulk_row1.addWidget(bulk_album_edit, 1)
+        bulk_row1.addWidget(fill_album_btn)
+        bulk_layout.addLayout(bulk_row1)
+
+        bulk_row2 = QHBoxLayout()
+        bulk_row2.setSpacing(8)
+
+        autonumber_spin = QSpinBox()
+        autonumber_spin.setObjectName("OverlayTextField")
+        autonumber_spin.setRange(0, 9999)
+        autonumber_spin.setValue(1)
+        autonumber_spin.setFixedWidth(70)
+        autonumber_spin.setToolTip("Starting track number for sequential numbering")
+
+        seq_btn = QPushButton("Number rows sequentially from →")
+        seq_btn.setObjectName("SecondaryButton")
+        seq_btn.setToolTip("Fill Track # column starting from the spinner value, incrementing by 1 per row")
+
+        read_btn = QPushButton("Read # from titles")
+        read_btn.setObjectName("SecondaryButton")
+        read_btn.setToolTip(
+            "If titles begin with a number (e.g. '01. Song Name'), extract it as the track number "
+            "and strip the prefix from the title."
+        )
+
+        bulk_row2.addWidget(seq_btn)
+        bulk_row2.addWidget(autonumber_spin)
+        bulk_row2.addSpacing(12)
+        bulk_row2.addWidget(read_btn)
+        bulk_row2.addStretch(1)
+        bulk_layout.addLayout(bulk_row2)
+
+        layout.addWidget(bulk_frame)
+
+        # ── Editable table ───────────────────────────────────────────────────
+        note = QLabel("Click any cell to edit individually, or use the bulk controls above.")
         note.setObjectName("MetaText")
-        note.setWordWrap(True)
         layout.addWidget(note)
 
+        table = QTableWidget(len(tracks), 4)
+        table.setObjectName("MetadataEditorTable")
+        table.setHorizontalHeaderLabels(["Track #", "Title", "Album", "Artist"])
+        table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
+        table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
+        table.verticalHeader().setVisible(False)
+        table.setSelectionBehavior(QAbstractItemView.SelectItems)
+        table.setSelectionMode(QAbstractItemView.SingleSelection)
+        table.setAlternatingRowColors(True)
+        table.setShowGrid(True)
+
+        def _cell(row: int, col: int) -> QTableWidgetItem:
+            item = table.item(row, col)
+            return item if item is not None else QTableWidgetItem()
+
+        for row, track in enumerate(tracks):
+            tn_item = QTableWidgetItem(str(track.track_number) if track.track_number else "")
+            tn_item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+            table.setItem(row, _COL_TN,     tn_item)
+            table.setItem(row, _COL_TITLE,  QTableWidgetItem(track.title or ""))
+            table.setItem(row, _COL_ALBUM,  QTableWidgetItem(track.album or ""))
+            table.setItem(row, _COL_ARTIST, QTableWidgetItem(track.artist or ""))
+            table.setRowHeight(row, 30)
+
+        layout.addWidget(table, 1)
+
+        # ── Bulk-fill actions ────────────────────────────────────────────────
+        def _fill_artist() -> None:
+            val = bulk_artist_edit.text().strip()
+            if not val:
+                return
+            for r in range(table.rowCount()):
+                item = table.item(r, _COL_ARTIST)
+                if item is None:
+                    table.setItem(r, _COL_ARTIST, QTableWidgetItem(val))
+                else:
+                    item.setText(val)
+
+        def _fill_album() -> None:
+            val = bulk_album_edit.text().strip()
+            if not val:
+                return
+            for r in range(table.rowCount()):
+                item = table.item(r, _COL_ALBUM)
+                if item is None:
+                    table.setItem(r, _COL_ALBUM, QTableWidgetItem(val))
+                else:
+                    item.setText(val)
+
+        def _apply_sequence() -> None:
+            start = autonumber_spin.value()
+            for r in range(table.rowCount()):
+                tn_str = str(start + r)
+                item = table.item(r, _COL_TN)
+                if item is None:
+                    new_item = QTableWidgetItem(tn_str)
+                    new_item.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+                    table.setItem(r, _COL_TN, new_item)
+                else:
+                    item.setText(tn_str)
+
+        def _read_from_titles() -> None:
+            for r in range(table.rowCount()):
+                title_item = table.item(r, _COL_TITLE)
+                if title_item is not None:
+                    m = _LEADING_NUM.match(title_item.text())
+                    if m:
+                        tn_val = QTableWidgetItem(str(int(m.group(1))))
+                        tn_val.setTextAlignment(Qt.AlignCenter | Qt.AlignVCenter)
+                        table.setItem(r, _COL_TN, tn_val)
+                        title_item.setText(title_item.text()[m.end():])
+
+                album_item = table.item(r, _COL_ALBUM)
+                if album_item is not None:
+                    m = _LEADING_NUM.match(album_item.text())
+                    if m:
+                        album_item.setText(album_item.text()[m.end():])
+
+        fill_artist_btn.clicked.connect(_fill_artist)
+        fill_album_btn.clicked.connect(_fill_album)
+        seq_btn.clicked.connect(_apply_sequence)
+        read_btn.clicked.connect(_read_from_titles)
+
+        # ── Dialog buttons ───────────────────────────────────────────────────
         btns = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         btns.accepted.connect(dlg.accept)
         btns.rejected.connect(dlg.reject)
@@ -1627,16 +1892,53 @@ class MusicPage(QWidget):
         if dlg.exec() != QDialog.Accepted:
             return
 
-        new_title  = title_edit.text().strip()
-        new_artist = artist_edit.text().strip()
-        if new_title and new_title != track.title:
-            self._library.update_title([path], new_title)
-        if new_artist != track.artist:
-            self._library.update_artist([path], new_artist)
+        failed_paths: list = []
+        for row, (track, path) in enumerate(zip(tracks, paths)):
+            new_title  = _cell(row, _COL_TITLE).text().strip()
+            new_album  = _cell(row, _COL_ALBUM).text().strip()
+            new_artist = _cell(row, _COL_ARTIST).text().strip()
+            tn_text    = _cell(row, _COL_TN).text().strip()
+
+            if new_title != (track.title or ""):
+                _, f = self._library.update_title([path], new_title)
+                failed_paths.extend(f)
+            if new_artist != (track.artist or ""):
+                _, f = self._library.update_artist([path], new_artist)
+                failed_paths.extend(f)
+            if new_album != (track.album or ""):
+                _, f = self._library.update_album([path], new_album)
+                failed_paths.extend(f)
+            if tn_text:
+                try:
+                    new_tn = int(tn_text)
+                    if new_tn != track.track_number:
+                        _, f = self._library.update_track_number([path], new_tn)
+                        failed_paths.extend(f)
+                except ValueError:
+                    pass
+
+        self._refresh_library_view()
+
+        if failed_paths:
+            from PySide6.QtWidgets import QMessageBox
+            names = "\n".join(f"  • {p.name}" for p in failed_paths[:10])
+            if len(failed_paths) > 10:
+                names += f"\n  … and {len(failed_paths) - 10} more"
+            QMessageBox.warning(
+                self,
+                "Some tags could not be saved",
+                f"The following files could not be written to disk.\n"
+                f"They may be in use, read-only, or an unsupported format.\n\n"
+                f"{names}\n\n"
+                f"Those tracks were not changed.",
+            )
+
+    def _on_sort_changed(self, _index: int) -> None:
+        self._sort_mode = self._sort_combo.currentData() or "artist"
         self._refresh_library_tree()
 
     def _refresh_library_tree(self) -> None:
-        self._library_tree.populate(self._library.tracks)
+        self._library_tree.populate(self._library.tracks, self._sort_mode)
 
     def _refresh_library_view(self) -> None:
         self._folder_list.clear()
@@ -1654,45 +1956,7 @@ class MusicPage(QWidget):
             f"{n} track{'s' if n != 1 else ''} indexed" if has_folders else ""
         )
         if has_folders:
-            self._library_tree.populate(tracks)
-
-    def _edit_artist_for_selection(self) -> None:
-        paths = self._library_tree.selected_paths()
-        if not paths:
-            return
-        current_artist = ""
-        if len(paths) == 1:
-            track = self._library.get_track(paths[0])
-            if track:
-                current_artist = track.display_artist
-        new_artist, ok = QInputDialog.getText(
-            self,
-            "Edit Artist",
-            f"New artist name for {len(paths)} selected track{'s' if len(paths) != 1 else ''}:",
-            text=current_artist,
-        )
-        if ok and new_artist.strip():
-            self._library.update_artist(paths, new_artist.strip())
-            self._refresh_library_view()
-
-    def _edit_album_for_selection(self) -> None:
-        paths = self._library_tree.selected_paths()
-        if not paths:
-            return
-        current_album = ""
-        if len(paths) == 1:
-            track = self._library.get_track(paths[0])
-            if track:
-                current_album = track.album or ""
-        new_album, ok = QInputDialog.getText(
-            self,
-            "Edit Album",
-            f"New album name for {len(paths)} selected track{'s' if len(paths) != 1 else ''}:",
-            text=current_album,
-        )
-        if ok:
-            self._library.update_album(paths, new_album.strip())
-            self._refresh_library_view()
+            self._library_tree.populate(tracks, self._sort_mode)
 
     def _add_selection_to_playlist(self) -> None:
         paths = self._library_tree.selected_paths()

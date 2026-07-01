@@ -1,0 +1,7 @@
+{
+  "name": "Poll Manager",
+  "version": "0.1.0",
+  "description": "Create and manage live Twitch polls without leaving StreamShift.",
+  "author": "StreamShift",
+  "entry_point": "plugin:PollManagerPlugin"
+}

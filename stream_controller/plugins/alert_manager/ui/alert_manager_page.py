@@ -24,8 +24,10 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from PySide6.QtCore import Qt, QSettings
+from PySide6.QtCore import Qt, QSettings, QTimer
 from PySide6.QtGui import QColor, QGuiApplication
+from stream_controller.ui.ui_utils import copy_with_feedback
+from stream_controller.constants import ALERT_OVERLAY_PORT
 
 if TYPE_CHECKING:
     from stream_controller.plugins.alert_manager.alert_models import AlertConfig, AlertEvent, AlertType
@@ -57,7 +59,7 @@ _STYLE_OPTIONS = [
     ("Blueprint (Technical)", "blueprint"),
 ]
 
-_BASE_URL = "http://localhost:47898"
+_BASE_URL = f"http://localhost:{ALERT_OVERLAY_PORT}"
 
 
 class AlertManagerPage(QWidget):
@@ -149,7 +151,12 @@ class AlertManagerPage(QWidget):
 
         test_btn = QPushButton("Test")
         test_btn.setFixedWidth(60)
-        test_btn.clicked.connect(lambda _, k=type_key: self._test_alert(k))
+        def _on_test(_, k=type_key, b=test_btn):
+            self._test_alert(k)
+            b.setText("✓")
+            b.setEnabled(False)
+            QTimer.singleShot(1500, lambda: (b.setText("Test"), b.setEnabled(True)))
+        test_btn.clicked.connect(_on_test)
         title_row.addWidget(test_btn)
 
         main.addLayout(title_row)
@@ -187,7 +194,7 @@ class AlertManagerPage(QWidget):
 
         copy_btn = QPushButton("Copy")
         copy_btn.setFixedWidth(60)
-        copy_btn.clicked.connect(lambda _, u=type_url: self._copy_text(u))
+        copy_btn.clicked.connect(lambda _, u=type_url, btn=copy_btn: copy_with_feedback(btn, u))
         url_row.addWidget(copy_btn)
         main.addLayout(url_row)
 
@@ -438,7 +445,7 @@ class AlertManagerPage(QWidget):
 
         copy_btn = QPushButton("Copy URL")
         copy_btn.setObjectName("PrimaryButton")
-        copy_btn.clicked.connect(lambda _=False, lbl=url_lbl: QGuiApplication.clipboard().setText(lbl.property("_current_url")))
+        copy_btn.clicked.connect(lambda _=False, lbl=url_lbl, btn=copy_btn: copy_with_feedback(btn, lbl.property("_current_url") or ""))
         layout.addWidget(copy_btn)
 
         return card

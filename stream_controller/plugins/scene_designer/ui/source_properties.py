@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 from stream_controller.plugins.scene_designer.designer_models import (
     SOURCE_TYPES, SourceConfig,
 )
+from stream_controller.constants import CHAT_OVERLAY_PORT, MUSIC_OVERLAY_PORT, ALERT_OVERLAY_PORT, TIMER_OVERLAY_PORT, PNGTUBER_PORT
 
 
 class SourcePropertiesPanel(QWidget):
@@ -440,12 +441,12 @@ class _BrowserForm(_BaseForm):
         self._overlay_combo.setObjectName("OverlayTextField")
         self._overlay_combo.addItem("— pick a built-in overlay —", "")
         for label, url in [
-            ("Chat Overlay",           "http://localhost:47892/chat"),
-            ("Now Playing",            "http://localhost:47891/now-playing"),
-            ("Alert Queue",            "http://localhost:47892/alerts"),
-            ("Scene Timer",            "http://localhost:47894/timer"),
-            ("Social Feed",            "http://localhost:47892/social"),
-            ("PNGtuber",               "http://localhost:47897/pngtuber"),
+            ("Chat Overlay",           f"http://localhost:{CHAT_OVERLAY_PORT}/chat"),
+            ("Now Playing",            f"http://localhost:{MUSIC_OVERLAY_PORT}/now-playing"),
+            ("Alert Queue",            f"http://localhost:{ALERT_OVERLAY_PORT}/alerts"),
+            ("Scene Timer",            f"http://localhost:{TIMER_OVERLAY_PORT}/timer"),
+            ("Social Feed",            f"http://localhost:{CHAT_OVERLAY_PORT}/social"),
+            ("PNGtuber",               f"http://localhost:{PNGTUBER_PORT}/pngtuber"),
         ]:
             self._overlay_combo.addItem(label, url)
         self._overlay_combo.currentIndexChanged.connect(self._on_overlay_picked)
@@ -885,7 +886,7 @@ class _ChatOverlayForm(_BaseForm):
         url_row.setSpacing(6)
         self._url = QLineEdit()
         self._url.setObjectName("OverlayTextField")
-        self._url.setPlaceholderText("http://localhost:47892/chat")
+        self._url.setPlaceholderText(f"http://localhost:{CHAT_OVERLAY_PORT}/chat")
         self._url.textChanged.connect(on_changed)
         url_row.addWidget(self._url, 1)
         open_btn = QPushButton("↗")
@@ -895,7 +896,7 @@ class _ChatOverlayForm(_BaseForm):
         url_row.addWidget(open_btn)
         self._layout.addLayout(url_row)
 
-        hint = QLabel("StreamShift overlay server runs on port 47892 by default.")
+        hint = QLabel(f"StreamShift overlay server runs on port {CHAT_OVERLAY_PORT} by default.")
         hint.setObjectName("CardDescription")
         hint.setWordWrap(True)
         self._layout.addWidget(hint)
@@ -918,7 +919,7 @@ class _ChatOverlayForm(_BaseForm):
     def load(self, source):
         s = source.settings
         self._url.blockSignals(True)
-        self._url.setText(s.get("url", "http://localhost:47892/chat"))
+        self._url.setText(s.get("url", f"http://localhost:{CHAT_OVERLAY_PORT}/chat"))
         self._url.blockSignals(False)
         for spin, key, default in [(self._bw, "width", 400), (self._bh, "height", 800)]:
             spin.blockSignals(True)

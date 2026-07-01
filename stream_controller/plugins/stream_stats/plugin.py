@@ -78,8 +78,10 @@ class StreamStatsPlugin:
             self._engine.end_session()
         if self._client:
             self._client.disconnect()
+            self._client = None
         if self._overlay:
             self._overlay.stop()
+            self._overlay = None
         self._app_context = None
 
     # ── connection ────────────────────────────────────────────────────────────
@@ -101,6 +103,8 @@ class StreamStatsPlugin:
         self._engine.set_status(ConnectionStatus.DISCONNECTED)
 
     def _auto_connect(self) -> None:
+        if self._client is None:
+            return
         self.do_connect()
 
     def _on_client_status(self, status: ConnectionStatus, error: str) -> None:

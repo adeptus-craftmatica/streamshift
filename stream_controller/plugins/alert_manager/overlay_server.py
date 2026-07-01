@@ -8,6 +8,8 @@ from typing import Callable
 
 logger = logging.getLogger(__name__)
 
+from stream_controller.constants import ALERT_OVERLAY_PORT
+
 try:
     from flask import Flask, Response, jsonify, send_from_directory
     _FLASK_AVAILABLE = True
@@ -16,7 +18,7 @@ except ImportError:
 
 _OVERLAYS_DIR = Path(__file__).parent / "overlays"
 _STYLES_DIR = _OVERLAYS_DIR / "styles"
-_DEFAULT_PORT = 47898
+_DEFAULT_PORT = ALERT_OVERLAY_PORT
 
 _ALL_TYPES = ["follower", "subscriber", "gift_sub", "bits", "raid", "donation"]
 

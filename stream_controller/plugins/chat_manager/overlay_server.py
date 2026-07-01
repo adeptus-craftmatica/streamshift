@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING
 
 logger = logging.getLogger(__name__)
 
+from stream_controller.constants import CHAT_OVERLAY_PORT
+
 if TYPE_CHECKING:
     from stream_controller.plugins.chat_manager.chat_state import ChatStateManager
 
@@ -18,7 +20,7 @@ except ImportError:
     _FLASK_AVAILABLE = False
 
 _OVERLAYS_DIR = Path(__file__).parent / "overlays"
-_DEFAULT_PORT = 47892
+_DEFAULT_PORT = CHAT_OVERLAY_PORT
 _MAX_FEED_MESSAGES = 50
 
 

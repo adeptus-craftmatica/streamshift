@@ -43,6 +43,7 @@ from stream_controller.plugins.bot_manager.bot_models import (
     TimedMessage,
 )
 from stream_controller.plugins.bot_manager.bot_repository import BotRepository
+from stream_controller.constants import BOT_OAUTH_PORT as _OAUTH_PORT
 
 # ─────────────────────────── helpers ────────────────────────────
 
@@ -476,7 +477,7 @@ class GeneralTab(QScrollArea):
         tw_lay.addWidget(redirect_label)
         redirect_row = QHBoxLayout()
         redirect_row.setSpacing(6)
-        _REDIRECT_URI = "http://localhost:47896/callback"
+        _REDIRECT_URI = f"http://localhost:{_OAUTH_PORT}/callback"
         redirect_uri_lbl = QLabel(_REDIRECT_URI)
         redirect_uri_lbl.setStyleSheet(
             "font-family: monospace; font-size:12px; color:#94a3b8;"
@@ -793,7 +794,6 @@ class GeneralTab(QScrollArea):
             )
             return
 
-        _OAUTH_PORT = 47896
         redirect_uri = f"http://localhost:{_OAUTH_PORT}/callback"
 
         # HTML page served at /callback — browser-side JS extracts the token
@@ -919,7 +919,7 @@ class GeneralTab(QScrollArea):
         if not client_id:
             self._broadcaster_token_status.setText("Enter Client ID first.")
             return
-        redirect = "http://localhost:47896/callback"
+        redirect = f"http://localhost:{_OAUTH_PORT}/callback"
         scope = "channel:read:redemptions+moderator:read:followers+channel:read:subscriptions+bits:read"
         url = (
             f"https://id.twitch.tv/oauth2/authorize"
@@ -980,9 +980,9 @@ class GeneralTab(QScrollArea):
         try:
             class _ReuseServer(HTTPServer):
                 allow_reuse_address = True
-            srv = _ReuseServer(("localhost", 47896), _Handler)
+            srv = _ReuseServer(("localhost", _OAUTH_PORT), _Handler)
         except OSError:
-            self._broadcaster_token_status.setText("Port 47896 in use — restart StreamShift and try again.")
+            self._broadcaster_token_status.setText(f"Port {_OAUTH_PORT} in use — restart StreamShift and try again.")
             return
 
         self._oauth_server = srv

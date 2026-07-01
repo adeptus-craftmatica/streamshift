@@ -4,6 +4,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from PySide6.QtCore import Qt, QSettings, QTimer
+from stream_controller.constants import CHAT_OVERLAY_PORT
 from PySide6.QtGui import QColor, QFont, QGuiApplication
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -500,7 +501,7 @@ class ChatPage(QWidget):
         return card
 
     def _overlay_url(self, path: str) -> str:
-        base = self._overlay_base_url or "http://localhost:47892"
+        base = self._overlay_base_url or f"http://localhost:{CHAT_OVERLAY_PORT}"
         params = []
         if hasattr(self, "_accent_edit"):
             a = self._accent_edit.text().strip().lstrip("#")

@@ -26,6 +26,7 @@ class ThemeManagerPlugin:
         self._repo = ThemeRepository(_DATA_DIR)
         self._page: ThemeManagerPage | None = None
         self._app_context = None
+        self._stage_view_ref = None  # held so we can disconnect on unregister
 
     # ── plugin lifecycle ──────────────────────────────────────────────────────
 
@@ -69,11 +70,24 @@ class ThemeManagerPlugin:
 
     # ── internal ──────────────────────────────────────────────────────────────
 
+    def unregister(self, app_context) -> None:
+        if self._stage_view_ref is not None:
+            try:
+                self._stage_view_ref.panel_added.disconnect(self._on_panel_added)
+            except RuntimeError:
+                pass  # widget already destroyed
+            self._stage_view_ref = None
+        app_context.main_window.unregister_plugin_ui("theme_manager")
+        self._app_context = None
+        self._page = None
+        logger.info("Theme Manager plugin unregistered")
+
     def _connect_stage_signal(self) -> None:
         from stream_controller.ui.stage_view.stage_view_page import StageViewPage
         for widget in QApplication.allWidgets():
             if isinstance(widget, StageViewPage):
                 widget.panel_added.connect(self._on_panel_added)
+                self._stage_view_ref = widget
                 break
 
     def _apply_saved_theme(self) -> None:

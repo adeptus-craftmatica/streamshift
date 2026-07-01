@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from PySide6.QtWidgets import QLayout, QWidget
+from PySide6.QtCore import QTimer
+from PySide6.QtGui import QGuiApplication
+from PySide6.QtWidgets import QLayout, QPushButton, QWidget
 
 
 def clear_layout(layout: QLayout) -> None:
@@ -13,3 +15,12 @@ def clear_layout(layout: QLayout) -> None:
             widget.deleteLater()
         elif child_layout is not None:
             clear_layout(child_layout)
+
+
+def copy_with_feedback(btn: QPushButton, text: str, *, revert_ms: int = 1500) -> None:
+    """Copy *text* to clipboard and briefly show '✓ Copied' on *btn*."""
+    QGuiApplication.clipboard().setText(text)
+    original = btn.text()
+    btn.setText("✓ Copied")
+    btn.setEnabled(False)
+    QTimer.singleShot(revert_ms, lambda: (btn.setText(original), btn.setEnabled(True)))

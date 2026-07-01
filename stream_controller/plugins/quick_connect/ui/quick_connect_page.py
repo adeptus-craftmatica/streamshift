@@ -156,6 +156,10 @@ class QuickConnectPage(QWidget):
         self._social_card.on_connect(self._connect_social)
         self._social_card.on_disconnect(self._disconnect_social)
 
+        self._poll_card = self._add_card("🗳️", "Poll Manager")
+        self._poll_card.on_connect(self._connect_poll)
+        self._poll_card.on_disconnect(self._disconnect_poll)
+
         # Poll status every 2 seconds
         self._timer = QTimer(self)
         self._timer.setInterval(2000)
@@ -479,6 +483,43 @@ class QuickConnectPage(QWidget):
 
     # ── Aggregate ─────────────────────────────────────────────────────────────
 
+    # ── Poll Manager ──────────────────────────────────────────────────────────
+
+    def _connect_poll(self) -> None:
+        plugin = self._get_plugin("poll_manager")
+        if plugin and hasattr(plugin, "connect"):
+            plugin.connect()
+
+    def _disconnect_poll(self) -> None:
+        plugin = self._get_plugin("poll_manager")
+        if plugin and hasattr(plugin, "disconnect"):
+            plugin.disconnect()
+
+    def _poll_status(self) -> tuple[bool, str]:
+        plugin = self._get_plugin("poll_manager")
+        if not plugin:
+            return False, "Plugin not loaded"
+        try:
+            from stream_controller.plugins.poll_manager.poll_models import ConnectionStatus
+            engine = getattr(plugin, "_engine", None)
+            if engine is None:
+                return False, "Not initialised"
+            s = engine.state.connection_status
+            if s == ConnectionStatus.CONNECTED:
+                active = engine.state.active_poll
+                return True, f"Connected · {active.title[:30]}" if active else "Connected"
+            elif s == ConnectionStatus.CONNECTING:
+                return False, "Connecting…"
+            elif s == ConnectionStatus.ERROR:
+                err = engine.state.connection_error
+                return False, f"Error: {err[:40]}" if err else "Error"
+            else:
+                return False, "Not connected"
+        except Exception:
+            return False, "Unknown"
+
+    # ── Aggregate ─────────────────────────────────────────────────────────────
+
     def _connect_all(self) -> None:
         self._connect_bots()
         self._connect_chat()
@@ -488,6 +529,7 @@ class QuickConnectPage(QWidget):
         self._connect_scene_manager()
         self._connect_pngtuber()
         self._connect_social()
+        self._connect_poll()
         QTimer.singleShot(1000, self._refresh_status)
 
     def _disconnect_all(self) -> None:
@@ -499,6 +541,7 @@ class QuickConnectPage(QWidget):
         self._disconnect_scene_manager()
         self._disconnect_pngtuber()
         self._disconnect_social()
+        self._disconnect_poll()
         QTimer.singleShot(500, self._refresh_status)
 
     def _refresh_status(self) -> None:
@@ -525,3 +568,7 @@ class QuickConnectPage(QWidget):
 
         social_conn, social_lbl = self._social_status()
         self._social_card.set_status(social_conn, label=social_lbl)
+
+        poll_conn, poll_lbl = self._poll_status()
+        poll_connecting = "Connecting" in poll_lbl
+        self._poll_card.set_status(poll_conn, connecting=poll_connecting, label=poll_lbl)

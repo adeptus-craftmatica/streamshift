@@ -24,6 +24,7 @@ _SERVICES = [
     ("chat_manager", "💬", "Chat"),
     ("stream_stats", "📊", "Stats"),
     ("stream_info",  "ℹ️",  "Info"),
+    ("poll_manager", "🗳️", "Polls"),
 ]
 
 
@@ -185,6 +186,22 @@ class QuickConnectTile(QFrame):
             pass
         self._set_dot("stream_info", info_conn)
 
+        # Poll Manager
+        poll = self._get_plugin("poll_manager")
+        poll_conn = False
+        poll_connecting = False
+        try:
+            if poll:
+                from stream_controller.plugins.poll_manager.poll_models import ConnectionStatus as PC
+                engine = getattr(poll, "_engine", None)
+                if engine:
+                    s = engine.state.connection_status
+                    poll_conn = s == PC.CONNECTED
+                    poll_connecting = s == PC.CONNECTING
+        except Exception:
+            pass
+        self._set_dot("poll_manager", poll_conn, poll_connecting)
+
     def _connect_all(self) -> None:
         qcp = self._get_qcp()
         if qcp:
@@ -231,6 +248,9 @@ class QuickConnectTile(QFrame):
         info = self._get_plugin("stream_info")
         if info and hasattr(info, "do_connect"):
             info.do_connect()
+        poll = self._get_plugin("poll_manager")
+        if poll and hasattr(poll, "connect"):
+            poll.connect()
 
     def _disconnect_all_direct(self) -> None:
         obs = self._get_plugin("obs_studio")
@@ -252,3 +272,6 @@ class QuickConnectTile(QFrame):
         info = self._get_plugin("stream_info")
         if info and hasattr(info, "do_disconnect"):
             info.do_disconnect()
+        poll = self._get_plugin("poll_manager")
+        if poll and hasattr(poll, "disconnect"):
+            poll.disconnect()

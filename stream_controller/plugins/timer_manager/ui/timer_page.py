@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from stream_controller.ui.theme import create_card
+from stream_controller.constants import TIMER_OVERLAY_PORT
 
 if TYPE_CHECKING:
     from stream_controller.plugins.timer_manager.timer_engine import TimerEngine
@@ -742,7 +743,7 @@ class TimerPage(QWidget):
     # ── Overlay URL helpers ───────────────────────────────────────────────────
 
     def _overlay_url(self, path: str) -> str:
-        base = self._overlay_base_url or "http://localhost:47894"
+        base = self._overlay_base_url or f"http://localhost:{TIMER_OVERLAY_PORT}"
         params = []
 
         timers = self._engine.timers

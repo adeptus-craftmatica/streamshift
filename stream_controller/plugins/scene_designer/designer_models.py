@@ -5,6 +5,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any
 
+from stream_controller.constants import CHAT_OVERLAY_PORT, MUSIC_OVERLAY_PORT, ALERT_OVERLAY_PORT, TIMER_OVERLAY_PORT, PNGTUBER_PORT
+
 # ── source types ──────────────────────────────────────────────────────────────
 
 SOURCE_TYPES: dict[str, dict] = {
@@ -78,7 +80,7 @@ SOURCE_TYPES: dict[str, dict] = {
         "obs_kind_mac": "browser_source",
         "obs_kind_win": "browser_source",
         "obs_kind_linux": "browser_source",
-        "default_settings": {"url": "http://localhost:47892/chat", "width": 400, "height": 800, "css": "", "fps": 30, "reroute_audio": False},
+        "default_settings": {"url": f"http://localhost:{CHAT_OVERLAY_PORT}/chat", "width": 400, "height": 800, "css": "", "fps": 30, "reroute_audio": False},
     },
 }
 

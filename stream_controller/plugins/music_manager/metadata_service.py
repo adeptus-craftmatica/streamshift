@@ -37,11 +37,7 @@ def read_track(path: Path) -> Track:
         elif ext == ".ogg":
             _read_ogg(path, track)
         elif ext == ".wav":
-            import wave
-            with wave.open(str(path), "rb") as wf:
-                frames = wf.getnframes()
-                rate = wf.getframerate()
-                track.duration = frames / float(rate)
+            _read_wav(path, track)
     except Exception as exc:
         logger.debug("Could not read metadata for %s: %s", path, exc)
 
@@ -94,6 +90,24 @@ def _read_ogg(path: Path, track: Track) -> None:
     track.album = _first(audio.get("album")) or ""
 
 
+def _read_wav(path: Path, track: Track) -> None:
+    try:
+        from mutagen.wave import WAVE
+        audio = WAVE(str(path))
+        track.duration = audio.info.length
+        if audio.tags:
+            track.title  = str(audio.tags.get("TIT2", [path.stem])[0]) or path.stem
+            track.artist = str(audio.tags.get("TPE1", [""])[0])
+            track.album  = str(audio.tags.get("TALB", [""])[0])
+            tn = audio.tags.get("TRCK")
+            if tn:
+                track.track_number = int(str(tn[0]).split("/")[0])
+    except Exception:
+        import wave as _wave
+        with _wave.open(str(path), "rb") as wf:
+            track.duration = wf.getnframes() / float(wf.getframerate())
+
+
 def write_artist(path: Path, artist: str) -> bool:
     """Write the artist tag back to the file. Returns True on success."""
     if not _MUTAGEN_AVAILABLE:
@@ -123,6 +137,14 @@ def write_artist(path: Path, artist: str) -> bool:
         elif ext == ".ogg":
             audio = OggVorbis(str(path))
             audio["artist"] = [artist]
+            audio.save()
+        elif ext == ".wav":
+            from mutagen.wave import WAVE
+            from mutagen.id3 import TPE1
+            audio = WAVE(str(path))
+            if audio.tags is None:
+                audio.add_tags()
+            audio.tags["TPE1"] = TPE1(encoding=3, text=artist)
             audio.save()
         else:
             return False
@@ -162,6 +184,14 @@ def write_title(path: Path, title: str) -> bool:
             audio = OggVorbis(str(path))
             audio["title"] = [title]
             audio.save()
+        elif ext == ".wav":
+            from mutagen.wave import WAVE
+            from mutagen.id3 import TIT2
+            audio = WAVE(str(path))
+            if audio.tags is None:
+                audio.add_tags()
+            audio.tags["TIT2"] = TIT2(encoding=3, text=title)
+            audio.save()
         else:
             return False
         return True
@@ -200,11 +230,65 @@ def write_album(path: Path, album: str) -> bool:
             audio = OggVorbis(str(path))
             audio["album"] = [album]
             audio.save()
+        elif ext == ".wav":
+            from mutagen.wave import WAVE
+            from mutagen.id3 import TALB
+            audio = WAVE(str(path))
+            if audio.tags is None:
+                audio.add_tags()
+            audio.tags["TALB"] = TALB(encoding=3, text=album)
+            audio.save()
         else:
             return False
         return True
     except Exception as exc:
         logger.warning("Could not write album tag to %s: %s", path, exc)
+        return False
+
+
+def write_track_number(path: Path, track_number: int) -> bool:
+    """Write the track number tag back to the file. Returns True on success."""
+    if not _MUTAGEN_AVAILABLE:
+        return False
+    try:
+        ext = path.suffix.lower()
+        if ext == ".mp3":
+            from mutagen.easyid3 import EasyID3
+            try:
+                tags = EasyID3(str(path))
+            except Exception:
+                from mutagen.id3 import ID3, TRCK
+                tags = ID3(str(path))
+                tags["TRCK"] = TRCK(encoding=3, text=str(track_number))
+                tags.save(str(path))
+                return True
+            tags["tracknumber"] = [str(track_number)]
+            tags.save(str(path))
+        elif ext == ".flac":
+            audio = FLAC(str(path))
+            audio["tracknumber"] = [str(track_number)]
+            audio.save()
+        elif ext in {".m4a", ".mp4"}:
+            audio = MP4(str(path))
+            audio["trkn"] = [(track_number, 0)]
+            audio.save()
+        elif ext == ".ogg":
+            audio = OggVorbis(str(path))
+            audio["tracknumber"] = [str(track_number)]
+            audio.save()
+        elif ext == ".wav":
+            from mutagen.wave import WAVE
+            from mutagen.id3 import TRCK
+            audio = WAVE(str(path))
+            if audio.tags is None:
+                audio.add_tags()
+            audio.tags["TRCK"] = TRCK(encoding=3, text=str(track_number))
+            audio.save()
+        else:
+            return False
+        return True
+    except Exception as exc:
+        logger.warning("Could not write track number tag to %s: %s", path, exc)
         return False
 
 

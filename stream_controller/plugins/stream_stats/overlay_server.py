@@ -5,7 +5,9 @@ import threading
 
 logger = logging.getLogger(__name__)
 
-_PORT = 47896
+from stream_controller.constants import STREAM_STATS_PORT
+
+_PORT = STREAM_STATS_PORT
 
 
 class StatsOverlayServer:

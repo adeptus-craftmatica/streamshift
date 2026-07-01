@@ -21,6 +21,7 @@ The token is delivered to the local callback server via an HTTP POST body
 import logging
 import socket
 import threading
+import urllib.parse
 import webbrowser
 from typing import Callable
 
@@ -122,21 +123,30 @@ class TwitchAuthFlow:
         ).start()
 
     def _run(self) -> None:
+        # Try IPv6 first (macOS resolves localhost → ::1); fall back to IPv4.
         try:
-            srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            srv = socket.socket(socket.AF_INET6, socket.SOCK_STREAM)
             srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            srv.bind(("127.0.0.1", _AUTH_PORT))
+            srv.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+            srv.bind(("::1", _AUTH_PORT))
             srv.listen(5)
             srv.settimeout(120)
-        except OSError as exc:
-            self._on_error(f"Could not start auth server: {exc}")
-            return
+        except OSError:
+            try:
+                srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                srv.bind(("127.0.0.1", _AUTH_PORT))
+                srv.listen(5)
+                srv.settimeout(120)
+            except OSError as exc:
+                self._on_error(f"Could not start auth server: {exc}")
+                return
 
         redirect_uri = f"http://localhost:{_AUTH_PORT}/callback"
         auth_url = (
             "https://id.twitch.tv/oauth2/authorize"
             f"?client_id={self._client_id}"
-            f"&redirect_uri={redirect_uri}"
+            f"&redirect_uri={urllib.parse.quote(redirect_uri, safe='')}"
             "&response_type=token"
             f"&scope={self._scopes}"
             "&force_verify=true"

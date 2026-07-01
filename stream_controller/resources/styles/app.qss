@@ -413,6 +413,32 @@ QComboBox QAbstractItemView::item:selected {
     color: #e8f4ff;
 }
 
+/* QCompleter popup — must be opaque; floating popups don't inherit the window background */
+QAbstractItemView#completerPopup {
+    background-color: #0f1a24;
+    color: #c8dce8;
+    border: 1px solid #1e3347;
+    border-radius: 8px;
+    padding: 4px;
+    outline: none;
+}
+QAbstractItemView#completerPopup::item {
+    min-height: 28px;
+    padding: 5px 12px;
+    margin: 1px 3px;
+    border-radius: 6px;
+    background-color: transparent;
+    color: #a8c8e0;
+}
+QAbstractItemView#completerPopup::item:hover {
+    background-color: rgba(63, 148, 191, 0.12);
+    color: #ddeef8;
+}
+QAbstractItemView#completerPopup::item:selected {
+    background-color: rgba(63, 148, 191, 0.20);
+    color: #e8f4ff;
+}
+
 QListWidget#DeckList {
     background-color: #0f1821;
     color: #edf2f7;

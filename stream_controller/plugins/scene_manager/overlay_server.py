@@ -11,6 +11,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+from stream_controller.constants import SCENE_OVERLAY_PORT
+
 try:
     from flask import Flask, Response, request, send_from_directory
     _FLASK = True
@@ -18,7 +20,7 @@ except ImportError:
     _FLASK = False
 
 _OVERLAYS_DIR = Path(__file__).parent / "overlays"
-_PORT = 47895
+_PORT = SCENE_OVERLAY_PORT
 
 
 class SceneOverlayServer:

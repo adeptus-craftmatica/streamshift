@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING
 
 logger = logging.getLogger(__name__)
 
+from stream_controller.constants import TIMER_OVERLAY_PORT
+
 if TYPE_CHECKING:
     from stream_controller.plugins.timer_manager.timer_engine import TimerEngine
 
@@ -18,7 +20,7 @@ except ImportError:
     _FLASK = False
 
 _OVERLAYS_DIR = Path(__file__).parent / "overlays"
-_DEFAULT_PORT = 47894
+_DEFAULT_PORT = TIMER_OVERLAY_PORT
 
 
 class TimerOverlayServer:
